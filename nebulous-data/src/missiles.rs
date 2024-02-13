@@ -144,16 +144,27 @@ pub struct SeekerLayout {
 
 impl SeekerLayout {
   pub fn guidance_quality(self) -> f32 {
-    let primary = self.primary.base_guidance_quality() + 5.0;
+    let primary = self.primary.base_guidance_quality() + 2.5;
     if let Some((secondary, mode)) = self.secondary {
       let secondary = secondary.base_guidance_quality();
       match mode {
         SeekerMode::Targeting => primary + secondary / 2.0,
-        SeekerMode::Validation => primary - (5.0 - secondary) / 2.0
+        SeekerMode::Validation => (primary + primary.max(secondary + 2.5)) / 2.0
       }
     } else {
       primary
     }
+  }
+
+  pub fn cost(self) -> f32 {
+    let primary_cost = self.primary.cost().0;
+    let secondary_cost = match self.secondary {
+      Some((secondary, SeekerMode::Targeting)) => secondary.cost().0,
+      Some((secondary, SeekerMode::Validation)) => secondary.cost().1,
+      None => 0.0
+    };
+
+    primary_cost + secondary_cost
   }
 }
 
@@ -269,7 +280,7 @@ impl SeekerStrategy {
         &[ActiveDecoy]
       ]),
       Self::new_double(ACT, CMD, VAL, &[
-        &[RadarJamming, CommsJamming],
+        &[RadarJamming],
         &[ChaffDecoy, CommsJamming],
         &[ActiveDecoy, CommsJamming]
       ]),

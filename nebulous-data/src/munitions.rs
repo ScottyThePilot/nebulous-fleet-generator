@@ -84,8 +84,7 @@ pub enum MunitionFamily {
   ContainerMissile,
   LoiteringMine,
   UnguidedRocket,
-
-  GrazerPlaceHolder
+  Infinite
 }
 
 #[repr(u8)]

@@ -1,3 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["./nebulous-data"]
+members = [
+  "./nebulous-data",
+  "./nebulous-fleet-generator"
+]

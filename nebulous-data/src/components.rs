@@ -101,6 +101,7 @@ pub enum ComponentVariant {
   /// These can be fixed or turreted.
   WeaponBeam {
     is_fixed: bool,
+    is_energy: bool,
     integrated_fire_control: Option<FireControl>,
     optical_backup: bool,
     role: WeaponRole,
@@ -133,11 +134,22 @@ pub enum ComponentVariant {
   /// These can be fixed or turreted.
   WeaponProjectile {
     is_fixed: bool,
+    is_energy: bool,
     integrated_fire_control: Option<FireControl>,
     optical_backup: bool,
     role: WeaponRole,
-    munition_family: MunitionFamily
+    munition_family: MunitionFamily,
+    /// REDUNDANT
+    rate_of_fire: f32,
+    reload_time: f32,
+    autoloader: Option<Autoloader>
   }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Autoloader {
+  pub capacity: u32,
+  pub recycle_time: f32
 }
 
 #[repr(u8)]
@@ -976,10 +988,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: true,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical100mm
+      munition_family: MunitionFamily::BallisticChemical100mm,
+      rate_of_fire: 27.17,
+      reload_time: 30.0,
+      autoloader: Some(Autoloader {
+        capacity: 24,
+        recycle_time: 1.0
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -1001,10 +1020,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: true,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical250mm
+      munition_family: MunitionFamily::BallisticChemical250mm,
+      rate_of_fire: 5.71,
+      reload_time: 70.0,
+      autoloader: Some(Autoloader {
+        capacity: 8,
+        recycle_time: 2.0
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -1026,10 +1052,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: true,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical250mm
+      munition_family: MunitionFamily::BallisticChemical250mm,
+      rate_of_fire: 9.18,
+      reload_time: 70.0,
+      autoloader: Some(Autoloader {
+        capacity: 15,
+        recycle_time: 2.0
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -1051,10 +1084,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: true,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical450mm
+      munition_family: MunitionFamily::BallisticChemical450mm,
+      rate_of_fire: 4.07,
+      reload_time: 90.0,
+      autoloader: Some(Autoloader {
+        capacity: 8,
+        recycle_time: 4.0
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -1076,10 +1116,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: true,
+      is_energy: true,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic400mmPlasma
+      munition_family: MunitionFamily::BallisticMagnetic400mmPlasma,
+      rate_of_fire: 5.0,
+      reload_time: 40.0,
+      autoloader: Some(Autoloader {
+        capacity: 8,
+        recycle_time: 5.0
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -1101,10 +1148,14 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: true,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical600mm
+      munition_family: MunitionFamily::BallisticChemical600mm,
+      rate_of_fire: 3.33,
+      reload_time: 18.0,
+      autoloader: None
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -1293,7 +1344,7 @@ pub mod list {
     compounding_multiplier: Some(0.0),
     first_instance_free: true,
     point_cost: 8,
-    mass: 0.0,
+    mass: 6.0,
     size: [1, 3, 1],
     can_tile: true,
     power: -10,
@@ -2385,17 +2436,19 @@ pub mod list {
     name: "Mk20 'Defender' PDT",
     save_key: "Stock/Mk20 'Defender' PDT",
     kind: ComponentKind::Mount,
-    variant: Some(ComponentVariant::WeaponBeam {
+    variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: Some(FireControl {
         sig_type: SigType::Radar,
         max_range: 2500.0
       }),
       optical_backup: false,
       role: WeaponRole::Defensive,
-      battleshort_available: false,
-      burst_duration: 0.0,
-      cooldown_time: 0.0
+      munition_family: MunitionFamily::BallisticChemical20mm,
+      rate_of_fire: 2400.0,
+      reload_time: 60.0 / 2400.0,
+      autoloader: None
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2417,10 +2470,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticChemical50mmFlak
+      munition_family: MunitionFamily::BallisticChemical50mmFlak,
+      rate_of_fire: 125.0,
+      reload_time: 3.0,
+      autoloader: Some(Autoloader {
+        capacity: 15,
+        recycle_time: 0.3
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2442,10 +2502,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticChemical50mmFlak
+      munition_family: MunitionFamily::BallisticChemical50mmFlak,
+      rate_of_fire: 256.0,
+      reload_time: 1.5,
+      autoloader: Some(Autoloader {
+        capacity: 16,
+        recycle_time: 0.15
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2467,10 +2534,14 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: true,
+      is_energy: true,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic300mmRailgun
+      munition_family: MunitionFamily::BallisticMagnetic300mmRailgun,
+      rate_of_fire: 4.0,
+      reload_time: 15.0,
+      autoloader: None
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2492,6 +2563,7 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponBeam {
       is_fixed: true,
+      is_energy: true,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
@@ -2519,6 +2591,7 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponBeam {
       is_fixed: false,
+      is_energy: true,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
@@ -2546,10 +2619,14 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical120mm
+      munition_family: MunitionFamily::BallisticChemical120mm,
+      rate_of_fire: 10.91,
+      reload_time: 5.5,
+      autoloader: None
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2571,10 +2648,14 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical120mm
+      munition_family: MunitionFamily::BallisticChemical120mm,
+      rate_of_fire: 15.0,
+      reload_time: 4.0,
+      autoloader: None
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2596,10 +2677,14 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical250mm
+      munition_family: MunitionFamily::BallisticChemical250mm,
+      rate_of_fire: 6.0,
+      reload_time: 10.0,
+      autoloader: None
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2621,10 +2706,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical250mm
+      munition_family: MunitionFamily::BallisticChemical250mm,
+      rate_of_fire: 12.86,
+      reload_time: 13.0,
+      autoloader: Some(Autoloader {
+        capacity: 3,
+        recycle_time: 0.5
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2646,10 +2738,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical450mm
+      munition_family: MunitionFamily::BallisticChemical450mm,
+      rate_of_fire: 5.85,
+      reload_time: 20.0,
+      autoloader: Some(Autoloader {
+        capacity: 2,
+        recycle_time: 0.5
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2671,10 +2770,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical450mm
+      munition_family: MunitionFamily::BallisticChemical450mm,
+      rate_of_fire: 8.57,
+      reload_time: 20.0,
+      autoloader: Some(Autoloader {
+        capacity: 3,
+        recycle_time: 0.5
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2696,10 +2802,14 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: true,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic300mmRailgun
+      munition_family: MunitionFamily::BallisticMagnetic300mmRailgun,
+      rate_of_fire: 2.0,
+      reload_time: 30.0,
+      autoloader: None
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2721,6 +2831,7 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponBeam {
       is_fixed: false,
+      is_energy: true,
       integrated_fire_control: Some(FireControl {
         sig_type: SigType::Radar,
         max_range: 3250.0
@@ -2751,13 +2862,20 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: true,
       integrated_fire_control: Some(FireControl {
         sig_type: SigType::Radar,
         max_range: 8000.0
       }),
       optical_backup: true,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticMagnetic15mm
+      munition_family: MunitionFamily::BallisticMagnetic15mm,
+      rate_of_fire: 27.03,
+      reload_time: 6.0,
+      autoloader: Some(Autoloader {
+        capacity: 3,
+        recycle_time: 0.33
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -2802,17 +2920,19 @@ pub mod list {
     name: "P11 'Pavise' PDT",
     save_key: "Stock/P11 PDT",
     kind: ComponentKind::Mount,
-    variant: Some(ComponentVariant::WeaponBeam {
+    variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: Some(FireControl {
         sig_type: SigType::Radar,
         max_range: 2500.0
       }),
       optical_backup: false,
       role: WeaponRole::Defensive,
-      battleshort_available: false,
-      burst_duration: 0.0,
-      cooldown_time: 0.0
+      munition_family: MunitionFamily::BallisticChemical20mm,
+      rate_of_fire: 4800.0,
+      reload_time: 60.0 / 4800.0,
+      autoloader: None
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -2834,10 +2954,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticChemical50mmFlak
+      munition_family: MunitionFamily::BallisticChemical50mmFlak,
+      rate_of_fire: 181.82,
+      reload_time: 0.33,
+      autoloader: Some(Autoloader {
+        capacity: 100,
+        recycle_time: 0.33
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -2859,13 +2986,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: true,
       integrated_fire_control: Some(FireControl {
         sig_type: SigType::ElectroOptical,
         max_range: 3000.0
       }),
       optical_backup: false,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::GrazerPlaceHolder
+      munition_family: MunitionFamily::Infinite,
+      rate_of_fire: 0.0,
+      reload_time: 0.0,
+      autoloader: None
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -3476,10 +3607,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical100mm
+      munition_family: MunitionFamily::BallisticChemical100mm,
+      rate_of_fire: 13.33,
+      reload_time: 15.0,
+      autoloader: Some(Autoloader {
+        capacity: 4,
+        recycle_time: 1.0
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -3501,10 +3639,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: false,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical100mm
+      munition_family: MunitionFamily::BallisticChemical100mm,
+      rate_of_fire: 21.33,
+      reload_time: 30.0,
+      autoloader: Some(Autoloader {
+        capacity: 16,
+        recycle_time: 1.0
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -3526,10 +3671,17 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: false,
+      is_energy: true,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic400mmPlasma
+      munition_family: MunitionFamily::BallisticMagnetic400mmPlasma,
+      rate_of_fire: 6.4,
+      reload_time: 40.0,
+      autoloader: Some(Autoloader {
+        capacity: 8,
+        recycle_time: 5.0
+      })
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -3551,10 +3703,14 @@ pub mod list {
     kind: ComponentKind::Mount,
     variant: Some(ComponentVariant::WeaponProjectile {
       is_fixed: true,
+      is_energy: true,
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic500mmMassDriver
+      munition_family: MunitionFamily::BallisticMagnetic500mmMassDriver,
+      rate_of_fire: 2.4,
+      reload_time: 25.0,
+      autoloader: None
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
