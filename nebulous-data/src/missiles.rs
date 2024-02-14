@@ -1,9 +1,12 @@
+use super::Faction;
+
 use std::fmt;
 use std::ops::Index;
 
 
 
 /// A seeker that can be chosen in game.
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SeekerKey {
   Command,
@@ -49,8 +52,8 @@ impl SeekerKey {
       Self::FixedAntiRadiation => 2.0,
       // Home-On-Jam is far more restrictive than Anti-Radiation, so it scores lower.
       Self::FixedHomeOnJam => 1.5,
-      // Electro-Optical Seekers, when provided with intel,
-      // are second only to Command Receivers at discriminating targets currently.
+      // Electro-Optical Seekers, when provided with intel, are second
+      // only to Command Receivers at discriminating targets correctly.
       Self::ElectroOptical => 4.5,
       Self::WakeHoming => 1.0
     }
@@ -78,6 +81,7 @@ impl fmt::Display for SeekerKey {
 }
 
 /// Describes a seeker's method of operation.
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SeekerKind {
   Command,
@@ -102,12 +106,31 @@ impl SeekerKind {
     }
   }
 
-  /// Seekers without distance perception cannot stage hybrid missiles.
-  pub const fn has_distance_perception(self) -> bool {
-    todo!()
+  pub const fn can_measure_distance(self) -> bool {
+    match self {
+      Self::Command => true,
+      Self::ActiveRadar => true,
+      Self::SemiActiveRadar => false,
+      Self::AntiRadiation => false,
+      Self::HomeOnJam => false,
+      Self::ElectroOptical => true,
+      Self::WakeHoming => false
+    }
   }
 
-  pub const fn get_seeker_keys(self) -> &'static [SeekerKey] {
+  pub const fn can_measure_velocity(self) -> bool {
+    match self {
+      Self::Command => true,
+      Self::ActiveRadar => true,
+      Self::SemiActiveRadar => true,
+      Self::AntiRadiation => false,
+      Self::HomeOnJam => false,
+      Self::ElectroOptical => true,
+      Self::WakeHoming => false
+    }
+  }
+
+  pub const fn seeker_keys(self) -> &'static [SeekerKey] {
     match self {
       Self::Command => &[SeekerKey::Command],
       Self::ActiveRadar => &[
@@ -130,6 +153,7 @@ impl fmt::Display for SeekerKind {
   }
 }
 
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SeekerMode {
   Targeting,
@@ -201,17 +225,17 @@ impl SeekerStrategy {
     SeekerStrategy { primary, secondary: Some((secondary, mode)), decoyed_by }
   }
 
-  pub fn get_layouts(self) -> Vec<SeekerLayout> {
+  pub fn layouts(self) -> Vec<SeekerLayout> {
     if let Some((secondary, mode)) = self.secondary {
-      self.primary.get_seeker_keys().iter()
+      self.primary.seeker_keys().iter()
         .flat_map(move |&primary| {
-          secondary.get_seeker_keys().iter().map(move |&secondary| {
+          secondary.seeker_keys().iter().map(move |&secondary| {
             SeekerLayout { primary, secondary: Some((secondary, mode)) }
           })
         })
         .collect()
     } else {
-      self.primary.get_seeker_keys().iter()
+      self.primary.seeker_keys().iter()
         .map(move |&primary| SeekerLayout { primary, secondary: None })
         .collect()
     }
@@ -219,7 +243,7 @@ impl SeekerStrategy {
 
   /// The probability that, based on the provided [`CountermeasureProbabilities`],
   /// this seeker configuration can be decoyed by fielded enemy countermeasures.
-  pub fn get_decoy_probability(self, probabilities: CountermeasureProbabilities) -> f32 {
+  pub fn decoy_probability(self, probabilities: CountermeasureProbabilities) -> f32 {
     let probabilities = self.decoyed_by.iter()
       .map(|&d| d.iter().map(|&cm| probabilities[cm]).product::<f32>())
       .collect::<Vec<f32>>();
@@ -240,7 +264,7 @@ impl SeekerStrategy {
   /// but are likely to be filtered out by the generator due to cost considerations.
   ///
   /// Additionally, this all works under the assumption that Reject Unvalidated Targets is never used.
-  pub const LIST: &'static [Self] = {
+  pub const VALUES: &'static [Self] = {
     use Countermeasure::*;
     use SeekerMode::{Targeting as BKP, Validation as VAL};
     use SeekerKind::{
@@ -432,6 +456,7 @@ impl fmt::Display for SeekerStrategy {
   }
 }
 
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Countermeasure {
   RadarJamming,
@@ -516,6 +541,100 @@ impl Default for CountermeasureProbabilities {
       active_decoy: 0.50,
       cut_engines: 0.20,
       cut_radar: 0.05
+    }
+  }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AuxiliaryKey {
+  ColdGasBottle,
+  DecoyLauncher,
+  ClusterDecoyLauncher,
+  FastStartupModule,
+  HardenedSkin,
+  RadarAbsorbentCoating,
+  SelfScreeningJammer,
+  BoostedSelfScreeningJammer
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AvionicsKey {
+  DirectGuidance,
+  CruiseGuidance
+}
+
+impl AvionicsKey {
+  pub const fn save_key(self) -> &'static str {
+    match self {
+      AvionicsKey::DirectGuidance => "Stock/Direct Guidance",
+      AvionicsKey::CruiseGuidance => "Stock/Cruise Guidance"
+    }
+  }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PayloadKey {
+  HEImpact,
+  HEKineticPenetrator,
+  BlastFragmentation,
+  BlastFragmentationEL
+}
+
+pub enum MissileKey {
+  SGM100Balestra,
+  SGM200Tempest,
+  SGMH200Cyclone,
+  SGMH300Atlatl,
+  SGT300Pilum,
+  CM400Container,
+  CMS400Container,
+}
+
+pub struct MissileBody {
+  pub name: &'static str,
+  pub save_key: &'static str,
+  pub faction: Option<Faction>,
+  /// Last slot is always the warhead/main slot.
+  pub slots: &'static [MissileSlot],
+  pub payload_size: usize,
+  pub engine_size: usize
+}
+
+pub struct MissileSlot {
+  pub allow_seekers: bool,
+  pub allow_auxiliary: bool,
+  pub allow_avionics: bool,
+  pub allow_payloads: bool
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct EngineSettings {
+  pub top_speed: f32,
+  pub burn_duration: f32,
+  pub maneuverability: f32
+}
+
+impl EngineSettings {
+  pub fn normalize(self) -> Self {
+    let a = self.top_speed.max(0.0);
+    let b = self.burn_duration.max(0.0);
+    let c = self.maneuverability.max(0.0);
+    let sum = a + b + c;
+    if sum <= 0.0 {
+      EngineSettings {
+        top_speed: 1.0 / 3.0,
+        burn_duration: 1.0 / 3.0,
+        maneuverability: 1.0 / 3.0
+      }
+    } else {
+      EngineSettings {
+        top_speed: a / sum,
+        burn_duration: b / sum,
+        maneuverability: c / sum
+      }
     }
   }
 }

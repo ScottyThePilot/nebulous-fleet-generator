@@ -73,15 +73,15 @@ pub enum HullKey {
 }
 
 impl HullKey {
-  pub const fn get_faction(self) -> Faction {
-    self.get_hull().faction
+  pub const fn faction(self) -> Faction {
+    self.hull().faction
   }
 
-  pub const fn get_save_key(self) -> &'static str {
-    self.get_hull().save_key
+  pub const fn save_key(self) -> &'static str {
+    self.hull().save_key
   }
 
-  pub const fn get_hull(self) -> &'static Hull {
+  pub const fn hull(self) -> &'static Hull {
     use self::list::*;
 
     match self {
@@ -121,7 +121,7 @@ impl FromStr for HullKey {
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     HullKey::VALUES.iter().copied()
-      .find(|hull_key| hull_key.get_save_key() == s)
+      .find(|hull_key| hull_key.save_key() == s)
       .ok_or(())
   }
 }

@@ -1,8 +1,9 @@
+#[macro_use]
+pub mod utils;
 pub mod components;
 pub mod hulls;
 pub mod missiles;
 pub mod munitions;
-pub mod utils;
 
 use std::str::FromStr;
 
@@ -23,6 +24,25 @@ impl FromStr for Faction {
       "Stock/Alliance" => Ok(Self::Alliance),
       "Stock/Protectorate" => Ok(Self::Protectorate),
       _ => Err(())
+    }
+  }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MissileSize {
+  Size1 = 1,
+  Size2 = 2,
+  Size3 = 3
+}
+
+impl MissileSize {
+  pub const fn from_u32(num: u32) -> Option<Self> {
+    match num {
+      1 => Some(MissileSize::Size1),
+      2 => Some(MissileSize::Size2),
+      3 => Some(MissileSize::Size3),
+      _ => None
     }
   }
 }

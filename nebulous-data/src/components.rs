@@ -1,8 +1,9 @@
 use super::hulls::HullKey;
-use super::munitions::{MissileSize, MunitionFamily, WeaponRole};
-use super::{Buff, Faction};
+use super::munitions::{MunitionFamily, WeaponRole};
+use super::{Buff, Faction, MissileSize};
 
 use std::str::FromStr;
+use std::num::NonZeroU32 as z32;
 
 
 
@@ -25,6 +26,44 @@ pub struct Component {
   pub max_health: f32,
   pub reinforced: bool,
   pub buffs: &'static [(Buff, f32)]
+}
+
+impl Component {
+  /// Whether or not this component is legal to use on the given hull.
+  pub const fn is_usable_on(self, hull: HullKey) -> bool {
+    match hull {
+      HullKey::OcelloCommandCruiser => true,
+      hull => self.is_usable_by(hull.faction())
+    }
+  }
+
+  /// Whether or not this component is legal to use by the given faction *in general*.
+  pub const fn is_usable_by(self, faction: Faction) -> bool {
+    match self.faction {
+      Some(Faction::Alliance) => matches!(faction, Faction::Alliance),
+      Some(Faction::Protectorate) => matches!(faction, Faction::Protectorate),
+      None => true
+    }
+  }
+
+  /// Whether or not this component can fit inside a socket of the given size.
+  pub const fn can_fit_in(self, socket_size: [u32; 3]) -> bool {
+    can_fit_in(socket_size, self.size)
+  }
+
+  /// The number of times this component could fit inside a socket of the given size, assuming it tiles.
+  pub const fn tiling_quantity(self, socket_size: [u32; 3]) -> u32 {
+    tiling_quantity(socket_size, self.size)
+  }
+
+  pub const fn crew(self, socket_size: [u32; 3]) -> i32 {
+    let component = self;
+    if let Some(ComponentVariant::Berthing) = component.variant {
+      component.crew * self.tiling_quantity(socket_size) as i32
+    } else {
+      component.crew
+    }
+  }
 }
 
 #[repr(u8)]
@@ -139,8 +178,6 @@ pub enum ComponentVariant {
     optical_backup: bool,
     role: WeaponRole,
     munition_family: MunitionFamily,
-    /// REDUNDANT
-    rate_of_fire: f32,
     reload_time: f32,
     autoloader: Option<Autoloader>
   }
@@ -148,8 +185,18 @@ pub enum ComponentVariant {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Autoloader {
-  pub capacity: u32,
+  pub capacity: z32,
   pub recycle_time: f32
+}
+
+/// Returns fire rate in rounds per second. Multiply by 60 to get rounds per minute.
+pub fn fire_rate(reload_time: f32, autoloader: Option<Autoloader>) -> f32 {
+  f32::recip(if let Some(autoloader) = autoloader {
+    let capacity = autoloader.capacity.get();
+    ((capacity - 1) as f32 * autoloader.recycle_time + reload_time) / capacity as f32
+  } else {
+    reload_time
+  })
 }
 
 #[repr(u8)]
@@ -304,47 +351,11 @@ pub enum ComponentKey {
 }
 
 impl ComponentKey {
-  /// Whether or not this component is legal to use on the given hull.
-  pub const fn is_usable_on(self, hull: HullKey) -> bool {
-    match hull {
-      HullKey::OcelloCommandCruiser => true,
-      hull => self.is_usable_by(hull.get_faction())
-    }
+  pub const fn save_key(self) -> &'static str {
+    self.component().save_key
   }
 
-  /// Whether or not this component is legal to use by the given faction *in general*.
-  pub const fn is_usable_by(self, faction: Faction) -> bool {
-    match self.get_component().faction {
-      Some(Faction::Alliance) => matches!(faction, Faction::Alliance),
-      Some(Faction::Protectorate) => matches!(faction, Faction::Protectorate),
-      None => true
-    }
-  }
-
-  /// Whether or not this component can fit inside a socket of the given size.
-  pub const fn can_fit_in(self, socket_size: [u32; 3]) -> bool {
-    can_fit_in(socket_size, self.get_component().size)
-  }
-
-  /// The number of times this component could fit inside a socket of the given size, assuming it tiles.
-  pub const fn get_tiling_quantity(self, socket_size: [u32; 3]) -> u32 {
-    get_tiling_quantity(socket_size, self.get_component().size)
-  }
-
-  pub const fn get_crew(self, socket_size: [u32; 3]) -> i32 {
-    let component = self.get_component();
-    if let Some(ComponentVariant::Berthing) = component.variant {
-      component.crew * self.get_tiling_quantity(socket_size) as i32
-    } else {
-      component.crew
-    }
-  }
-
-  pub const fn get_save_key(self) -> &'static str {
-    self.get_component().save_key
-  }
-
-  pub const fn get_component(self) -> &'static Component {
+  pub const fn component(self) -> &'static Component {
     use self::list::*;
 
     match self {
@@ -624,12 +635,12 @@ impl FromStr for ComponentKey {
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     ComponentKey::VALUES.iter().copied()
-      .find(|component_key| component_key.get_save_key() == s)
+      .find(|component_key| component_key.save_key() == s)
       .ok_or(())
   }
 }
 
-pub const fn get_tiling_quantity(container: [u32; 3], item: [u32; 3]) -> u32 {
+pub const fn tiling_quantity(container: [u32; 3], item: [u32; 3]) -> u32 {
   (container[0] / item[0]) * (container[1] / item[1]) * (container[2] / item[2])
 }
 
@@ -993,10 +1004,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticChemical100mm,
-      rate_of_fire: 27.17,
       reload_time: 30.0,
       autoloader: Some(Autoloader {
-        capacity: 24,
+        capacity: z32!(24),
         recycle_time: 1.0
       })
     }),
@@ -1025,10 +1035,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticChemical250mm,
-      rate_of_fire: 5.71,
       reload_time: 70.0,
       autoloader: Some(Autoloader {
-        capacity: 8,
+        capacity: z32!(8),
         recycle_time: 2.0
       })
     }),
@@ -1057,10 +1066,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticChemical250mm,
-      rate_of_fire: 9.18,
       reload_time: 70.0,
       autoloader: Some(Autoloader {
-        capacity: 15,
+        capacity: z32!(15),
         recycle_time: 2.0
       })
     }),
@@ -1089,10 +1097,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticChemical450mm,
-      rate_of_fire: 4.07,
       reload_time: 90.0,
       autoloader: Some(Autoloader {
-        capacity: 8,
+        capacity: z32!(8),
         recycle_time: 4.0
       })
     }),
@@ -1121,12 +1128,8 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticMagnetic400mmPlasma,
-      rate_of_fire: 5.0,
-      reload_time: 40.0,
-      autoloader: Some(Autoloader {
-        capacity: 8,
-        recycle_time: 5.0
-      })
+      reload_time: 12.0,
+      autoloader: None
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -1153,7 +1156,6 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticChemical600mm,
-      rate_of_fire: 3.33,
       reload_time: 18.0,
       autoloader: None
     }),
@@ -2446,7 +2448,6 @@ pub mod list {
       optical_backup: false,
       role: WeaponRole::Defensive,
       munition_family: MunitionFamily::BallisticChemical20mm,
-      rate_of_fire: 2400.0,
       reload_time: 60.0 / 2400.0,
       autoloader: None
     }),
@@ -2475,10 +2476,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Defensive,
       munition_family: MunitionFamily::BallisticChemical50mmFlak,
-      rate_of_fire: 125.0,
       reload_time: 3.0,
       autoloader: Some(Autoloader {
-        capacity: 15,
+        capacity: z32!(15),
         recycle_time: 0.3
       })
     }),
@@ -2507,10 +2507,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Defensive,
       munition_family: MunitionFamily::BallisticChemical50mmFlak,
-      rate_of_fire: 256.0,
       reload_time: 1.5,
       autoloader: Some(Autoloader {
-        capacity: 16,
+        capacity: z32!(16),
         recycle_time: 0.15
       })
     }),
@@ -2539,7 +2538,6 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticMagnetic300mmRailgun,
-      rate_of_fire: 4.0,
       reload_time: 15.0,
       autoloader: None
     }),
@@ -2624,7 +2622,6 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::DualPurpose,
       munition_family: MunitionFamily::BallisticChemical120mm,
-      rate_of_fire: 10.91,
       reload_time: 5.5,
       autoloader: None
     }),
@@ -2653,7 +2650,6 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::DualPurpose,
       munition_family: MunitionFamily::BallisticChemical120mm,
-      rate_of_fire: 15.0,
       reload_time: 4.0,
       autoloader: None
     }),
@@ -2682,7 +2678,6 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::DualPurpose,
       munition_family: MunitionFamily::BallisticChemical250mm,
-      rate_of_fire: 6.0,
       reload_time: 10.0,
       autoloader: None
     }),
@@ -2711,10 +2706,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticChemical250mm,
-      rate_of_fire: 12.86,
       reload_time: 13.0,
       autoloader: Some(Autoloader {
-        capacity: 3,
+        capacity: z32!(3),
         recycle_time: 0.5
       })
     }),
@@ -2743,10 +2737,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticChemical450mm,
-      rate_of_fire: 5.85,
       reload_time: 20.0,
       autoloader: Some(Autoloader {
-        capacity: 2,
+        capacity: z32!(2),
         recycle_time: 0.5
       })
     }),
@@ -2775,10 +2768,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticChemical450mm,
-      rate_of_fire: 8.57,
       reload_time: 20.0,
       autoloader: Some(Autoloader {
-        capacity: 3,
+        capacity: z32!(3),
         recycle_time: 0.5
       })
     }),
@@ -2807,7 +2799,6 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticMagnetic300mmRailgun,
-      rate_of_fire: 2.0,
       reload_time: 30.0,
       autoloader: None
     }),
@@ -2870,10 +2861,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Defensive,
       munition_family: MunitionFamily::BallisticMagnetic15mm,
-      rate_of_fire: 27.03,
       reload_time: 6.0,
       autoloader: Some(Autoloader {
-        capacity: 3,
+        capacity: z32!(3),
         recycle_time: 0.33
       })
     }),
@@ -2930,7 +2920,6 @@ pub mod list {
       optical_backup: false,
       role: WeaponRole::Defensive,
       munition_family: MunitionFamily::BallisticChemical20mm,
-      rate_of_fire: 4800.0,
       reload_time: 60.0 / 4800.0,
       autoloader: None
     }),
@@ -2959,10 +2948,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Defensive,
       munition_family: MunitionFamily::BallisticChemical50mmFlak,
-      rate_of_fire: 181.82,
       reload_time: 0.33,
       autoloader: Some(Autoloader {
-        capacity: 100,
+        capacity: z32!(100),
         recycle_time: 0.33
       })
     }),
@@ -2994,8 +2982,7 @@ pub mod list {
       optical_backup: false,
       role: WeaponRole::Defensive,
       munition_family: MunitionFamily::Infinite,
-      rate_of_fire: 0.0,
-      reload_time: 0.0,
+      reload_time: 7.0,
       autoloader: None
     }),
     faction: Some(Faction::Protectorate),
@@ -3612,10 +3599,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::DualPurpose,
       munition_family: MunitionFamily::BallisticChemical100mm,
-      rate_of_fire: 13.33,
       reload_time: 15.0,
       autoloader: Some(Autoloader {
-        capacity: 4,
+        capacity: z32!(4),
         recycle_time: 1.0
       })
     }),
@@ -3644,10 +3630,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::DualPurpose,
       munition_family: MunitionFamily::BallisticChemical100mm,
-      rate_of_fire: 21.33,
       reload_time: 30.0,
       autoloader: Some(Autoloader {
-        capacity: 16,
+        capacity: z32!(16),
         recycle_time: 1.0
       })
     }),
@@ -3676,10 +3661,9 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticMagnetic400mmPlasma,
-      rate_of_fire: 6.4,
       reload_time: 40.0,
       autoloader: Some(Autoloader {
-        capacity: 8,
+        capacity: z32!(8),
         recycle_time: 5.0
       })
     }),
@@ -3708,7 +3692,6 @@ pub mod list {
       optical_backup: true,
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::BallisticMagnetic500mmMassDriver,
-      rate_of_fire: 2.4,
       reload_time: 25.0,
       autoloader: None
     }),

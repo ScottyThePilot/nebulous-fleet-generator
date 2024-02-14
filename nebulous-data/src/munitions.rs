@@ -1,4 +1,8 @@
+use super::MissileSize;
+
 use std::str::FromStr;
+
+
 
 #[derive(Debug, Clone, Copy)]
 pub struct Munition {
@@ -39,25 +43,6 @@ pub struct MunitionDamage {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum MissileSize {
-  Size1 = 1,
-  Size2 = 2,
-  Size3 = 3
-}
-
-impl MissileSize {
-  pub const fn from_u32(num: u32) -> Option<Self> {
-    match num {
-      1 => Some(MissileSize::Size1),
-      2 => Some(MissileSize::Size2),
-      3 => Some(MissileSize::Size3),
-      _ => None
-    }
-  }
-}
-
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WeaponRole {
   Offensive,
   Defensive,
@@ -85,6 +70,12 @@ pub enum MunitionFamily {
   LoiteringMine,
   UnguidedRocket,
   Infinite
+}
+
+impl MunitionFamily {
+  pub fn keys(self) -> impl Iterator<Item = MunitionKey> + DoubleEndedIterator + Clone {
+    MunitionKey::VALUES.iter().copied().filter(move |&key| key.munition().family == self)
+  }
 }
 
 #[repr(u8)]
@@ -125,11 +116,11 @@ pub enum MunitionKey {
 }
 
 impl MunitionKey {
-  pub const fn get_save_key(self) -> &'static str {
-    self.get_munition().save_key
+  pub const fn save_key(self) -> &'static str {
+    self.munition().save_key
   }
 
-  pub const fn get_munition(self) -> &'static Munition {
+  pub const fn munition(self) -> &'static Munition {
     use self::list::*;
 
     match self {
@@ -209,7 +200,7 @@ impl FromStr for MunitionKey {
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     MunitionKey::VALUES.iter().copied()
-      .find(|munition_key| munition_key.get_save_key() == s)
+      .find(|munition_key| munition_key.save_key() == s)
       .ok_or(())
   }
 }
