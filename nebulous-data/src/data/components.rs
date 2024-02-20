@@ -3,7 +3,7 @@ use super::munitions::{MunitionFamily, WeaponRole};
 use super::{Buff, Faction, MissileSize};
 
 use std::str::FromStr;
-use std::num::NonZeroU32 as z32;
+use std::num::NonZeroUsize as zsize;
 
 
 
@@ -16,13 +16,13 @@ pub struct Component {
   pub faction: Option<Faction>,
   pub compounding_multiplier: Option<f32>,
   pub first_instance_free: bool,
-  pub point_cost: u32,
+  pub point_cost: usize,
   pub mass: f32,
-  pub size: [u32; 3],
+  pub size: [usize; 3],
   pub can_tile: bool,
-  pub power: i32,
+  pub power: isize,
   /// Crew is tileable when the variant is `Berthing`.
-  pub crew: i32,
+  pub crew: isize,
   pub max_health: f32,
   pub reinforced: bool,
   pub buffs: &'static [(Buff, f32)]
@@ -47,19 +47,19 @@ impl Component {
   }
 
   /// Whether or not this component can fit inside a socket of the given size.
-  pub const fn can_fit_in(self, socket_size: [u32; 3]) -> bool {
+  pub const fn can_fit_in(self, socket_size: [usize; 3]) -> bool {
     can_fit_in(socket_size, self.size)
   }
 
   /// The number of times this component could fit inside a socket of the given size, assuming it tiles.
-  pub const fn tiling_quantity(self, socket_size: [u32; 3]) -> u32 {
+  pub const fn tiling_quantity(self, socket_size: [usize; 3]) -> usize {
     tiling_quantity(socket_size, self.size)
   }
 
-  pub const fn crew(self, socket_size: [u32; 3]) -> i32 {
+  pub const fn crew(self, socket_size: [usize; 3]) -> isize {
     let component = self;
     if let Some(ComponentVariant::Berthing) = component.variant {
-      component.crew * self.tiling_quantity(socket_size) as i32
+      component.crew * self.tiling_quantity(socket_size) as isize
     } else {
       component.crew
     }
@@ -88,10 +88,10 @@ pub enum ComponentVariant {
   },
   /// A damage-control compartment.
   DamageControl {
-    teams: u32,
+    teams: usize,
     repair_speed: f32,
     movement_speed: f32,
-    restores: u32
+    restores: usize
   },
   /// A fire-control radar.
   FireControl { fire_control: FireControl },
@@ -122,7 +122,7 @@ pub enum ComponentVariant {
   },
   /// A magazine.
   Magazine {
-    available_volume: u32
+    available_volume: usize
   },
   /// An electronic warfare sensor component, such as a search radar.
   Sensor {
@@ -164,10 +164,8 @@ pub enum ComponentVariant {
     role: WeaponRole,
     munition_family: MunitionFamily,
     missile_size: MissileSize,
-    /// Whether each tiled group of cells must contain the same missile type.
-    separated_cell_groups: bool,
     /// Cells can be tileable.
-    cells: u32
+    cells: MissileLauncherCells
   },
   /// A weapon that fires projectiles and requires ammunition to operate.
   /// These can be fixed or turreted.
@@ -185,7 +183,7 @@ pub enum ComponentVariant {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Autoloader {
-  pub capacity: z32,
+  pub capacity: zsize,
   pub recycle_time: f32
 }
 
@@ -211,6 +209,27 @@ pub enum SigType {
 pub struct FireControl {
   pub sig_type: SigType,
   pub max_range: f32
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MissileLauncherCells {
+  Fixed {
+    count: usize
+  },
+  Tiling {
+    count: usize,
+    /// Whether each tiled group of cells must contain the same missile type.
+    separated_groups: bool
+  },
+  Function {
+    function: fn([usize; 3]) -> Option<usize>
+  }
+}
+
+impl MissileLauncherCells {
+  const fn function(function: fn([usize; 3]) -> Option<usize>) -> Self {
+    Self::Function { function }
+  }
 }
 
 #[repr(u8)]
@@ -640,11 +659,11 @@ impl FromStr for ComponentKey {
   }
 }
 
-pub const fn tiling_quantity(container: [u32; 3], item: [u32; 3]) -> u32 {
+pub const fn tiling_quantity(container: [usize; 3], item: [usize; 3]) -> usize {
   (container[0] / item[0]) * (container[1] / item[1]) * (container[2] / item[2])
 }
 
-pub const fn can_fit_in(container: [u32; 3], item: [u32; 3]) -> bool {
+pub const fn can_fit_in(container: [usize; 3], item: [usize; 3]) -> bool {
   container[0] >= item[0] && container[1] >= item[1] && container[2] >= item[2]
 }
 
@@ -1006,7 +1025,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical100mm,
       reload_time: 30.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(24),
+        capacity: zsize!(24),
         recycle_time: 1.0
       })
     }),
@@ -1037,7 +1056,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical250mm,
       reload_time: 70.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(8),
+        capacity: zsize!(8),
         recycle_time: 2.0
       })
     }),
@@ -1068,7 +1087,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical250mm,
       reload_time: 70.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(15),
+        capacity: zsize!(15),
         recycle_time: 2.0
       })
     }),
@@ -1099,7 +1118,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical450mm,
       reload_time: 90.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(8),
+        capacity: zsize!(8),
         recycle_time: 4.0
       })
     }),
@@ -1253,8 +1272,13 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size3,
-      separated_cell_groups: false,
-      cells: 4
+      cells: MissileLauncherCells::function(|size| match size {
+        // CLS-3 is not available for 3x3 mounts
+        [3, y, 5] if y >= 4 => Some(6),
+        [6, y, 6] if y >= 4 => Some(16),
+        [8, y, 8] if y >= 4 => Some(20),
+        _ => None
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -1385,8 +1409,10 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::ContainerMissile,
       missile_size: MissileSize::Size3,
-      separated_cell_groups: true,
-      cells: 24
+      cells: MissileLauncherCells::Tiling {
+        count: 24,
+        separated_groups: true
+      }
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -1412,8 +1438,7 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::ContainerMissile,
       missile_size: MissileSize::Size3,
-      separated_cell_groups: false,
-      cells: 2
+      cells: MissileLauncherCells::Fixed { count: 2 }
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -2478,7 +2503,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical50mmFlak,
       reload_time: 3.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(15),
+        capacity: zsize!(15),
         recycle_time: 0.3
       })
     }),
@@ -2509,7 +2534,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical50mmFlak,
       reload_time: 1.5,
       autoloader: Some(Autoloader {
-        capacity: z32!(16),
+        capacity: zsize!(16),
         recycle_time: 0.15
       })
     }),
@@ -2708,7 +2733,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical250mm,
       reload_time: 13.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(3),
+        capacity: zsize!(3),
         recycle_time: 0.5
       })
     }),
@@ -2739,7 +2764,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical450mm,
       reload_time: 20.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(2),
+        capacity: zsize!(2),
         recycle_time: 0.5
       })
     }),
@@ -2770,7 +2795,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical450mm,
       reload_time: 20.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(3),
+        capacity: zsize!(3),
         recycle_time: 0.5
       })
     }),
@@ -2863,7 +2888,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticMagnetic15mm,
       reload_time: 6.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(3),
+        capacity: zsize!(3),
         recycle_time: 0.33
       })
     }),
@@ -2950,7 +2975,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical50mmFlak,
       reload_time: 0.33,
       autoloader: Some(Autoloader {
-        capacity: z32!(100),
+        capacity: zsize!(100),
         recycle_time: 0.33
       })
     }),
@@ -3118,8 +3143,7 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::UnguidedRocket,
       missile_size: MissileSize::Size1,
-      separated_cell_groups: false,
-      cells: 18
+      cells: MissileLauncherCells::Fixed { count: 18 }
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -3145,8 +3169,7 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::UnguidedRocket,
       missile_size: MissileSize::Size1,
-      separated_cell_groups: false,
-      cells: 36
+      cells: MissileLauncherCells::Fixed { count: 36 }
     }),
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
@@ -3601,7 +3624,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical100mm,
       reload_time: 15.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(4),
+        capacity: zsize!(4),
         recycle_time: 1.0
       })
     }),
@@ -3632,7 +3655,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticChemical100mm,
       reload_time: 30.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(16),
+        capacity: zsize!(16),
         recycle_time: 1.0
       })
     }),
@@ -3663,7 +3686,7 @@ pub mod list {
       munition_family: MunitionFamily::BallisticMagnetic400mmPlasma,
       reload_time: 40.0,
       autoloader: Some(Autoloader {
-        capacity: z32!(8),
+        capacity: zsize!(8),
         recycle_time: 5.0
       })
     }),
@@ -3719,8 +3742,7 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size3,
-      separated_cell_groups: false,
-      cells: 6
+      cells: MissileLauncherCells::Fixed { count: 6 }
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -3767,8 +3789,7 @@ pub mod list {
       role: WeaponRole::DualPurpose,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size1,
-      separated_cell_groups: false,
-      cells: 23
+      cells: MissileLauncherCells::Fixed { count: 23 }
     }),
     faction: None,
     compounding_multiplier: None,
@@ -3794,8 +3815,7 @@ pub mod list {
       role: WeaponRole::DualPurpose,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size1,
-      separated_cell_groups: false,
-      cells: 46
+      cells: MissileLauncherCells::Fixed { count: 46 }
     }),
     faction: None,
     compounding_multiplier: None,
@@ -3821,8 +3841,13 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size2,
-      separated_cell_groups: false,
-      cells: 16
+      cells: MissileLauncherCells::function(|size| match size {
+        [3, y, 3] if y >= 4 => Some(16),
+        [3, y, 5] if y >= 4 => Some(24),
+        [6, y, 6] if y >= 4 => Some(64),
+        [8, y, 8] if y >= 4 => Some(80),
+        _ => None
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -3848,8 +3873,13 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size3,
-      separated_cell_groups: false,
-      cells: 4
+      cells: MissileLauncherCells::function(|size| match size {
+        [3, y, 3] if y >= 4 => Some(4),
+        [3, y, 5] if y >= 4 => Some(6),
+        [6, y, 6] if y >= 4 => Some(16),
+        [8, y, 8] if y >= 4 => Some(20),
+        _ => None
+      })
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,

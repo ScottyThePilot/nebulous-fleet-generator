@@ -10,7 +10,7 @@ pub struct Hull {
   pub name: &'static str,
   pub save_key: &'static str,
   pub faction: Faction,
-  pub point_cost: u32,
+  pub point_cost: usize,
   pub mass: f32,
   pub max_speed: f32,
   pub max_turn_speed: f32,
@@ -18,7 +18,7 @@ pub struct Hull {
   pub angular_motor: f32,
   pub base_integrity: f32,
   pub armor_thickness: f32,
-  pub base_crew_complement: u32,
+  pub base_crew_complement: usize,
   pub buffs: &'static [(Buff, f32)],
   pub sockets: &'static [HullSocket],
   pub socket_symmetries: &'static [(&'static str, &'static str)]
@@ -28,29 +28,29 @@ pub struct Hull {
 pub struct HullSocket {
   pub save_key: &'static str,
   pub kind: ComponentKind,
-  pub size: [u32; 3],
+  pub size: [usize; 3],
   pub direction: Option<Direction>,
   pub desirability: f32
 }
 
 impl HullSocket {
   #[inline]
-  const fn mount(save_key: &'static str, size: [u32; 3], direction: Direction, desirability: f32) -> Self {
+  const fn mount(save_key: &'static str, size: [usize; 3], direction: Direction, desirability: f32) -> Self {
     HullSocket { save_key, kind: ComponentKind::Mount, size, direction: Some(direction), desirability }
   }
 
   #[inline]
-  const fn mount_unknown(save_key: &'static str, size: [u32; 3], desirability: f32) -> Self {
+  const fn mount_unknown(save_key: &'static str, size: [usize; 3], desirability: f32) -> Self {
     HullSocket { save_key, kind: ComponentKind::Mount, size, direction: None, desirability }
   }
 
   #[inline]
-  const fn compartment(save_key: &'static str, size: [u32; 3], desirability: f32) -> Self {
+  const fn compartment(save_key: &'static str, size: [usize; 3], desirability: f32) -> Self {
     HullSocket { save_key, kind: ComponentKind::Compartment, size, direction: None, desirability }
   }
 
   #[inline]
-  const fn module(save_key: &'static str, size: [u32; 3], desirability: f32) -> Self {
+  const fn module(save_key: &'static str, size: [usize; 3], desirability: f32) -> Self {
     HullSocket { save_key, kind: ComponentKind::Mount, size, direction: None, desirability }
   }
 }

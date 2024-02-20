@@ -1,0 +1,9 @@
+[package]
+name = "xml"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rxml = "0.9.1"
+thiserror = "1.0"
+uuid = "1.7.0"

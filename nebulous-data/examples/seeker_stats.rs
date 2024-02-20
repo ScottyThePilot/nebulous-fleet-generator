@@ -1,4 +1,4 @@
-use nebulous_data::missiles::{SeekerStrategy, CountermeasureProbabilities};
+use nebulous_data::data::missiles::{SeekerStrategy, CountermeasureProbabilities};
 
 fn main() {
   let mut out = String::new();

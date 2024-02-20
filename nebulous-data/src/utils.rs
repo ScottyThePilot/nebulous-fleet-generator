@@ -25,8 +25,8 @@ pub fn probability_any(list: &[f32]) -> f32 {
 }
 
 #[macro_export]
-macro_rules! z32 {
-  ($expr:expr) => (match std::num::NonZeroU32::new($expr) {
+macro_rules! zsize {
+  ($expr:expr) => (match std::num::NonZeroUsize::new($expr) {
     Option::Some(__v) => __v,
     Option::None => panic!("value is zero")
   });
