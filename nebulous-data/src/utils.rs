@@ -31,3 +31,47 @@ macro_rules! zsize {
     Option::None => panic!("value is zero")
   });
 }
+
+macro_rules! size_op {
+  ($vis:vis fn $name:ident [$t:tt]) => (
+    #[inline] $vis const fn $name(self, rhs: Self) -> Self {
+      Size { x: self.x $t rhs.x, y: self.x $t rhs.y, z: self.x $t rhs.z }
+    }
+  );
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct Size {
+  pub x: usize,
+  pub y: usize,
+  pub z: usize
+}
+
+impl Size {
+  #[inline]
+  pub const fn new(x: usize, y: usize, z: usize) -> Self {
+    Size { x, y, z }
+  }
+
+  #[inline]
+  pub const fn from_array(array: [usize; 3]) -> Self {
+    Size { x: array[0], y: array[1], z: array[2] }
+  }
+
+  #[inline]
+  pub const fn into_array(self) -> [usize; 3] {
+    [self.x, self.y, self.z]
+  }
+
+  size_op!(pub fn add [+]);
+  size_op!(pub fn sub [-]);
+  size_op!(pub fn div [/]);
+  size_op!(pub fn mul [*]);
+  size_op!(pub fn rem [%]);
+
+  #[inline]
+  pub const fn volume(self) -> usize {
+    self.x * self.y * self.z
+  }
+}
