@@ -336,7 +336,7 @@ impl Nodes {
   }
 
   /// Searches this nodes list for the given element names, returning a list of elements associated with those names.
-  pub fn find_elements<const N: usize>(self, names: [&str; N]) -> Result<[Element; N], Error> {
+  pub fn find_elements<const N: usize>(self, names: [&str; N]) -> Result<[Option<Element>; N], Error> {
     let mut elements: [_; N] = std::array::from_fn(|_| None);
     for node in self.into_iter_raw() {
       let Node::Element(element) = node else { continue };
@@ -345,11 +345,6 @@ impl Nodes {
         return Err(Error::UnexpectedElementDuplicate(element));
       };
     };
-
-    let elements = elements.into_iter().zip(names)
-      .map(|(option, name)| option.ok_or(Error::missing_element(name)))
-      .collect::<Result<Vec<Element>, Error>>()?
-      .try_into().expect("infallible");
 
     Ok(elements)
   }
