@@ -1,5 +1,6 @@
 use super::MissileSize;
 
+use std::fmt;
 use std::str::FromStr;
 
 
@@ -196,12 +197,18 @@ impl MunitionKey {
 }
 
 impl FromStr for MunitionKey {
-  type Err = ();
+  type Err = super::InvalidKey;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     MunitionKey::VALUES.iter().copied()
       .find(|munition_key| munition_key.save_key() == s)
-      .ok_or(())
+      .ok_or(super::InvalidKey)
+  }
+}
+
+impl fmt::Display for MunitionKey {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.save_key())
   }
 }
 

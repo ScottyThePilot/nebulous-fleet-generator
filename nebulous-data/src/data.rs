@@ -3,9 +3,30 @@ pub mod hulls;
 pub mod missiles;
 pub mod munitions;
 
+use std::fmt;
 use std::str::FromStr;
 
 
+
+xml::impl_deserialize_nodes_parse! {
+  Faction,
+  self::components::ComponentKey,
+  self::hulls::HullKey,
+  self::munitions::MunitionKey
+}
+
+xml::impl_serialize_nodes_display! {
+  Faction,
+  self::components::ComponentKey,
+  self::hulls::HullKey,
+  self::munitions::MunitionKey
+}
+
+
+
+#[derive(Debug, Error, Clone, Copy)]
+#[error("invalid key")]
+pub struct InvalidKey;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -14,15 +35,30 @@ pub enum Faction {
   Protectorate
 }
 
+impl Faction {
+  pub const fn save_key(self) -> &'static str {
+    match self {
+      Self::Alliance => "Stock/Alliance",
+      Self::Protectorate => "Stock/Protectorate"
+    }
+  }
+}
+
 impl FromStr for Faction {
-  type Err = ();
+  type Err = InvalidKey;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     match s {
       "Stock/Alliance" => Ok(Self::Alliance),
       "Stock/Protectorate" => Ok(Self::Protectorate),
-      _ => Err(())
+      _ => Err(InvalidKey)
     }
+  }
+}
+
+impl fmt::Display for Faction {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.save_key())
   }
 }
 

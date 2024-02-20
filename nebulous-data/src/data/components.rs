@@ -3,8 +3,9 @@ use super::munitions::{MunitionFamily, WeaponRole};
 use super::{Buff, Faction, MissileSize};
 use crate::utils::Size;
 
-use std::str::FromStr;
+use std::fmt;
 use std::num::NonZeroUsize as zsize;
+use std::str::FromStr;
 
 
 
@@ -691,12 +692,18 @@ impl ComponentKey {
 }
 
 impl FromStr for ComponentKey {
-  type Err = ();
+  type Err = super::InvalidKey;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     ComponentKey::VALUES.iter().copied()
       .find(|component_key| component_key.save_key() == s)
-      .ok_or(())
+      .ok_or(super::InvalidKey)
+  }
+}
+
+impl fmt::Display for ComponentKey {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.save_key())
   }
 }
 

@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 itertools = { version = "0.12.1" }
+thiserror = { version = "1.0" }
+xml = { path = "../xml" }

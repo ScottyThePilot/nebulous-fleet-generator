@@ -76,7 +76,7 @@ pub trait SerializeNodes: Sized {
   fn serialize_nodes(self) -> Result<Nodes, Self::Error>;
 }
 
-pub trait SerailizeElement: Sized {
+pub trait SerializeElement: Sized {
   type Error;
 
   fn serialize_element(self) -> Result<Element, Self::Error>;
@@ -90,7 +90,7 @@ impl SerializeNodes for Nodes {
   }
 }
 
-impl SerailizeElement for Element {
+impl SerializeElement for Element {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
@@ -106,7 +106,7 @@ impl SerializeNodes for String {
   }
 }
 
-impl<T> SerializeNodes for Vec<T> where T: SerailizeElement {
+impl<T> SerializeNodes for Vec<T> where T: SerializeElement {
   type Error = T::Error;
 
   fn serialize_nodes(self) -> Result<Nodes, Self::Error> {
@@ -132,14 +132,15 @@ where T::Err: std::error::Error + Send + Sync + 'static {
     })
 }
 
+#[macro_export]
 macro_rules! impl_deserialize_nodes_parse {
   ($($Type:ty),* $(,)?) => {
-    $(impl DeserializeNodes for $Type {
-      type Error = Error;
+    $(impl $crate::DeserializeNodes for $Type {
+      type Error = $crate::Error;
 
       #[inline]
-      fn deserialize_nodes(nodes: Nodes) -> Result<Self, Self::Error> {
-        deserialize_nodes_parse(nodes)
+      fn deserialize_nodes(nodes: $crate::Nodes) -> std::result::Result<Self, Self::Error> {
+        $crate::deserialize_nodes_parse(nodes)
       }
     })*
   };
@@ -171,13 +172,14 @@ impl_deserialize_nodes_parse! {
   uuid::Uuid
 }
 
+#[macro_export]
 macro_rules! impl_serialize_nodes_display {
   ($($Type:ty),* $(,)?) => {
-    $(impl SerializeNodes for $Type {
-      type Error = Infallible;
+    $(impl $crate::SerializeNodes for $Type {
+      type Error = std::convert::Infallible;
 
-      fn serialize_nodes(self) -> Result<Nodes, Self::Error> {
-        Ok(serialize_nodes_display(&self))
+      fn serialize_nodes(self) -> std::result::Result<$crate::Nodes, Self::Error> {
+        std::result::Result::Ok($crate::serialize_nodes_display(&self))
       }
     })*
   };
@@ -254,6 +256,12 @@ impl Node {
   }
 }
 
+impl From<Element> for Node {
+  fn from(value: Element) -> Self {
+    Node::Element(value)
+  }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Element {
   pub name: Box<str>,
@@ -262,9 +270,27 @@ pub struct Element {
 }
 
 impl Element {
+  pub fn new(name: impl Into<Box<str>>, children: impl Into<Nodes>) -> Self {
+    Element { name: name.into(), attributes: HashMap::new(), children: children.into() }
+  }
+
+  pub fn with_attributes(name: impl Into<Box<str>>, attributes: Attributes, children: impl Into<Nodes>) -> Self {
+    Element { name: name.into(), attributes, children: children.into() }
+  }
+
   #[inline]
   pub fn deserialize<T: DeserializeElement>(self) -> Result<T, T::Error> {
     T::deserialize_element(self)
+  }
+
+  pub fn expect_named(&self, name: &str) -> Result<(), Error> {
+    if self.name.as_ref() != name { Err(Error::UnexpectedElementExpectedElement(self.clone(), name.into())) } else { Ok(()) }
+  }
+
+  pub fn find_attribute(&self, attribute_name: &str) -> Result<&Box<str>, Error> {
+    self.attributes.get(attribute_name).ok_or_else(|| {
+      Error::MissingAttribute(self.attributes.clone(), attribute_name.into())
+    })
   }
 }
 
@@ -277,6 +303,10 @@ pub struct Nodes {
 impl Nodes {
   pub fn new_text(text: impl Into<String>) -> Self {
     Nodes { nodes: Box::new([Node::Text(text.into())]) }
+  }
+
+  pub fn new_one(node: impl Into<Node>) -> Self {
+    Nodes { nodes: Box::new([node.into()]) }
   }
 
   #[inline]
@@ -412,9 +442,21 @@ pub type IterNodes = Filter<VecIntoIter<Node>, fn(&Node) -> bool>;
 pub type IterNodesRef<'a> = Filter<SliceIter<'a, Node>, fn(&&'a Node) -> bool>;
 pub type IterNodesMut<'a> = Filter<SliceIterMut<'a, Node>, fn(&&'a mut Node) -> bool>;
 
+impl FromIterator<Element> for Nodes {
+  fn from_iter<T: IntoIterator<Item = Element>>(iter: T) -> Self {
+    iter.into_iter().map(Node::from).collect()
+  }
+}
+
 impl FromIterator<Node> for Nodes {
   fn from_iter<T: IntoIterator<Item = Node>>(iter: T) -> Self {
     Nodes { nodes: iter.into_iter().collect() }
+  }
+}
+
+impl<const N: usize> From<[Node; N]> for Nodes {
+  fn from(value: [Node; N]) -> Self {
+    value.into_iter().collect()
   }
 }
 
@@ -562,6 +604,8 @@ pub enum Error {
   UnexpectedText(String),
   #[error("missing element {:?}", .0)]
   MissingElement(Box<str>),
+  #[error("missing attribute {:?} in attributes map {:?}", .1, .0)]
+  MissingAttribute(HashMap<Box<str>, Box<str>>, Box<str>),
   #[error("incorrect nodes count: found {}, expected {}", .0.len(), .1)]
   IncorrectNodesCount(Vec<Node>, usize),
   #[error("incorrect elements count: found {}, expected {}", .0.len(), .1)]

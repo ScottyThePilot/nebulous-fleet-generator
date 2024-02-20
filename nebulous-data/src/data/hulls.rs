@@ -2,6 +2,7 @@ use super::components::ComponentKind;
 use super::{Buff, Direction, Faction};
 use crate::utils::Size;
 
+use std::fmt;
 use std::str::FromStr;
 
 
@@ -118,12 +119,18 @@ impl HullKey {
 }
 
 impl FromStr for HullKey {
-  type Err = ();
+  type Err = super::InvalidKey;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     HullKey::VALUES.iter().copied()
       .find(|hull_key| hull_key.save_key() == s)
-      .ok_or(())
+      .ok_or(super::InvalidKey)
+  }
+}
+
+impl fmt::Display for HullKey {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.save_key())
   }
 }
 
