@@ -85,6 +85,34 @@ impl<T> DeserializeNodes for Vec<T> where T: DeserializeElement {
   }
 }
 
+impl<T, const N: usize> DeserializeNodes for [T; N] where T: DeserializeElement {
+  type Error = DeserializeErrorWrapper<T::Error>;
+
+  fn deserialize_nodes(nodes: Nodes) -> Result<Self, Self::Error> {
+    let elements = nodes.try_into_elements_array::<N>()?;
+    let elements = elements.into_iter()
+      .map(|v| T::deserialize_element(v).map_err(DeserializeErrorWrapper::Inner))
+      .collect::<Result<Vec<T>, DeserializeErrorWrapper<T::Error>>>()?;
+    Ok(elements.try_into().ok().expect("infallible"))
+  }
+}
+
+impl<T> DeserializeNodes for Box<T> where T: DeserializeNodes {
+  type Error = T::Error;
+
+  fn deserialize_nodes(nodes: Nodes) -> Result<Self, Self::Error> {
+    T::deserialize_nodes(nodes).map(Box::new)
+  }
+}
+
+impl<T> DeserializeElement for Box<T> where T: DeserializeElement {
+  type Error = T::Error;
+
+  fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    T::deserialize_element(element).map(Box::new)
+  }
+}
+
 
 
 pub trait SerializeNodes: Sized {
@@ -135,10 +163,31 @@ impl<T> SerializeNodes for Vec<T> where T: SerializeElement {
   type Error = T::Error;
 
   fn serialize_nodes(self) -> Result<Nodes, Self::Error> {
-    self.into_iter()
-      .map(|value| T::serialize_element(value).map(Node::Element))
-      .collect::<Result<Vec<Node>, Self::Error>>()
-      .map(Nodes::from)
+    self.into_iter().map(T::serialize_element).collect()
+  }
+}
+
+impl<T, const N: usize> SerializeNodes for [T; N] where T: SerializeElement {
+  type Error = T::Error;
+
+  fn serialize_nodes(self) -> Result<Nodes, Self::Error> {
+    self.into_iter().map(T::serialize_element).collect()
+  }
+}
+
+impl<T> SerializeNodes for Box<T> where T: SerializeNodes {
+  type Error = T::Error;
+
+  fn serialize_nodes(self) -> Result<Nodes, Self::Error> {
+    (*self).serialize_nodes()
+  }
+}
+
+impl<T> SerializeElement for Box<T> where T: SerializeElement {
+  type Error = T::Error;
+
+  fn serialize_element(self) -> Result<Element, Self::Error> {
+    (*self).serialize_element()
   }
 }
 
@@ -544,6 +593,28 @@ impl DerefMut for Nodes {
 }
 
 
+
+pub fn assert_roundtrip_nodes<T>(value: &T)
+where
+  T: DeserializeNodes + SerializeNodes + PartialEq + Clone + std::fmt::Debug,
+  <T as DeserializeNodes>::Error: std::fmt::Debug,
+  <T as SerializeNodes>::Error: std::fmt::Debug,
+{
+  let nodes = value.clone().serialize_nodes().expect("failed to round-trip");
+  let value2 = nodes.deserialize::<T>().expect("failed to round-trip");
+  assert_eq!(value, &value2, "failed to round-trip: values not equal");
+}
+
+pub fn assert_roundtrip_element<T>(value: &T)
+where
+  T: DeserializeElement + SerializeElement + PartialEq + Clone + std::fmt::Debug,
+  <T as DeserializeElement>::Error: std::fmt::Debug,
+  <T as SerializeElement>::Error: std::fmt::Debug,
+{
+  let element = value.clone().serialize_element().expect("failed to round-trip");
+  let value2 = element.deserialize::<T>().expect("failed to round-trip");
+  assert_eq!(value, &value2, "failed to round-trip: values not equal");
+}
 
 pub fn write_nodes(nodes: &Nodes, version: Option<XmlVersion>) -> Result<Vec<u8>, Error> {
   let mut buffer = Vec::new();

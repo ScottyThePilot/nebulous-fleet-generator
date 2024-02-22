@@ -9,4 +9,3 @@ pub mod data;
 pub mod format;
 
 pub use crate::utils::Size;
-pub use xml::uuid::Uuid;

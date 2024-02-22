@@ -2,18 +2,29 @@ use crate::data::Faction;
 use crate::data::hulls::HullKey;
 use crate::data::components::ComponentKey;
 
-use xml::uuid::Uuid;
-use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Node, Nodes};
+use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes};
+
+pub use xml::uuid::Uuid;
+pub use xml::{read_nodes, write_nodes};
 
 use std::collections::{HashSet, HashMap};
 use std::convert::Infallible;
 
 
 
+macro_rules! chain_iter {
+  ($expr0:expr $(,)?) => ($expr0.into_iter());
+  ($expr0:expr, $($expr:expr),* $(,)?) => ($expr0.into_iter()$(.chain($expr))*);
+}
+
 #[derive(Debug, Error)]
 pub enum FormatError {
   #[error(transparent)]
-  XmlError(#[from] xml::Error)
+  XmlError(#[from] xml::Error),
+  #[error("unknown hull config type {0:?}")]
+  UnknownHullConfigType(Box<str>),
+  #[error("unknown hull component data type {0:?}")]
+  UnknownComponentDataType(Box<str>)
 }
 
 impl From<xml::DeserializeErrorWrapper<FormatError>> for FormatError {
@@ -26,6 +37,11 @@ impl From<xml::DeserializeErrorWrapper<xml::Error>> for FormatError {
   fn from(value: xml::DeserializeErrorWrapper<xml::Error>) -> Self {
     FormatError::XmlError(value.convert())
   }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Root<T> {
+  pub element: T
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,8 +77,16 @@ impl SerializeElement for Fleet {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
+    let name = Element::new("Name", self.name.serialize_nodes()?);
+    let total_points = Element::new("TotalPoints", self.total_points.serialize_nodes()?);
+    let faction_key = Element::new("FactionKey", self.faction_key.serialize_nodes()?);
+    let description = self.description.map(String::serialize_nodes).transpose()?
+      .map(|description| Element::new("Description", description));
+    let ships = Element::new("Ships", self.ships.serialize_nodes()?);
+    let missile_types = Element::new("MissileTypes", self.missile_types.serialize_nodes()?);
 
-    Ok(todo!())
+    let nodes = Nodes::from_iter(chain_iter!([name, total_points, faction_key], description, [ships, missile_types]));
+    Ok(Element::new("Fleet", nodes))
   }
 }
 
@@ -74,7 +98,7 @@ pub struct Ship {
   pub callsign: Option<String>,
   pub number: usize,
   pub hull_type: HullKey,
-  pub hull_config: Option<HullConfig>,
+  pub hull_config: Option<Box<HullConfig>>,
   pub socket_map: Vec<HullSocket>,
   pub weapon_groups: Vec<WeaponGroup>,
   pub missile_types: Vec<MissileTemplate>
@@ -94,7 +118,7 @@ impl DeserializeElement for Ship {
     let callsign = callsign.map(|callsign| callsign.children.deserialize::<String>()).transpose()?;
     let number = number.ok_or(xml::Error::missing_element("Number"))?.children.deserialize::<usize>()?;
     let hull_type = hull_type.ok_or(xml::Error::missing_element("HullType"))?.children.deserialize::<HullKey>()?;
-    let hull_config = hull_config.map(|hull_config| hull_config.deserialize::<HullConfig>()).transpose()?;
+    let hull_config = hull_config.map(|hull_config| hull_config.deserialize::<Box<HullConfig>>()).transpose()?;
     let socket_map = socket_map.ok_or(xml::Error::missing_element("SocketMap"))?.children.deserialize::<Vec<HullSocket>>()?;
     let weapon_groups = weapon_groups.ok_or(xml::Error::missing_element("WeaponGroups"))?.children.deserialize::<Vec<WeaponGroup>>()?;
     let missile_types = missile_types.ok_or(xml::Error::missing_element("TemplateMissileTypes"))?.children.deserialize::<Vec<MissileTemplate>>()?;
@@ -115,15 +139,16 @@ impl SerializeElement for Ship {
     let number = Element::new("Number", self.number.serialize_nodes()?);
     let symbol_option = Element::new("SymbolOption", Nodes::new_text("0"));
     let hull_type = Element::new("HullType", self.hull_type.serialize_nodes()?);
-    let hull_config = self.hull_config.map(HullConfig::serialize_element).transpose()?;
+    let hull_config = self.hull_config.map(<Box<HullConfig>>::serialize_element).transpose()?;
     let socket_map = Element::new("SocketMap", self.socket_map.serialize_nodes()?);
     let weapon_groups = Element::new("WeaponGroups", self.weapon_groups.serialize_nodes()?);
     let missile_types = Element::new("TemplateMissileTypes", self.missile_types.serialize_nodes()?);
 
-    let a = [save_id, key, name, cost, callsign, number, symbol_option, hull_type];
-    let b = [socket_map, weapon_groups, missile_types];
+    let nodes = Nodes::from_iter(chain_iter!(
+      [save_id, key, name, cost, callsign, number, symbol_option, hull_type],
+      hull_config, [socket_map, weapon_groups, missile_types]
+    ));
 
-    let nodes = Nodes::from_iter(a.into_iter().chain(hull_config).chain(b));
     Ok(Element::new("Ship", nodes))
   }
 }
@@ -157,24 +182,73 @@ impl SerializeElement for HullSocket {
     let key = Element::new("Key", Nodes::new_text(self.key));
     let component_name = Element::new("ComponentName", Nodes::new_text(self.component_name.save_key()));
     let component_data = self.component_data.map(ComponentData::serialize_element).transpose()?;
-    let nodes = [key, component_name].into_iter().chain(component_data).collect::<Nodes>();
+    let nodes = Nodes::from_iter(chain_iter!([key, component_name], component_data));
     Ok(Element::new("HullSocket", nodes))
   }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComponentData {
-  BulkMagazineData,
-  CellLauncherData,
-  ResizableCellLauncherData
+  BulkMagazineData {
+    load: Vec<MagazineSaveData>
+  },
+  CellLauncherData {
+    missile_load: Vec<MagazineSaveData>
+  },
+  ResizableCellLauncherData {
+    missile_load: Vec<MagazineSaveData>,
+    configured_size: Vector2<usize>
+  }
+}
+
+impl ComponentData {
+  pub const fn get_load(&self) -> &Vec<MagazineSaveData> {
+    match self {
+      ComponentData::BulkMagazineData { load } => load,
+      ComponentData::CellLauncherData { missile_load } => missile_load,
+      ComponentData::ResizableCellLauncherData { missile_load, .. } => missile_load
+    }
+  }
+
+  pub fn get_load_mut(&mut self) -> &mut Vec<MagazineSaveData> {
+    match self {
+      ComponentData::BulkMagazineData { load } => load,
+      ComponentData::CellLauncherData { missile_load } => missile_load,
+      ComponentData::ResizableCellLauncherData { missile_load, .. } => missile_load
+    }
+  }
 }
 
 impl DeserializeElement for ComponentData {
   type Error = FormatError;
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("ComponentData")?;
+    let xsi_type = element.find_attribute("xsi:type")?;
 
-    Ok(todo!())
+    match xsi_type.as_ref() {
+      "BulkMagazineData" => {
+        let [load] = element.children.find_elements(["Load"])?;
+        let load = load.ok_or(xml::Error::missing_element("Load"))?
+          .children.deserialize::<Vec<MagazineSaveData>>()?;
+        Ok(ComponentData::BulkMagazineData { load })
+      },
+      "CellLauncherData" => {
+        let [missile_load] = element.children.find_elements(["MissileLoad"])?;
+        let missile_load = missile_load.ok_or(xml::Error::missing_element("MissileLoad"))?
+          .children.deserialize::<Vec<MagazineSaveData>>()?;
+        Ok(ComponentData::CellLauncherData { missile_load })
+      },
+      "ResizableCellLauncherData" => {
+        let [missile_load, configured_size] = element.children.find_elements(["MissileLoad", "ConfiguredSize"])?;
+        let missile_load = missile_load.ok_or(xml::Error::missing_element("MissileLoad"))?
+          .children.deserialize::<Vec<MagazineSaveData>>()?;
+        let configured_size = configured_size.ok_or(xml::Error::missing_element("ConfiguredSize"))?
+          .children.deserialize::<Vector2<usize>>()?;
+        Ok(ComponentData::ResizableCellLauncherData { missile_load, configured_size })
+      },
+      _ => Err(FormatError::UnknownComponentDataType(xsi_type.clone()))
+    }
   }
 }
 
@@ -182,8 +256,59 @@ impl SerializeElement for ComponentData {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
+    let (xsi_type, nodes) = match self {
+      ComponentData::BulkMagazineData { load } => ("BulkMagazineData", {
+        Nodes::new_one(Element::new("Load", load.serialize_nodes()?))
+      }),
+      ComponentData::CellLauncherData { missile_load } => ("CellLauncherData", {
+        Nodes::new_one(Element::new("MissileLoad", missile_load.serialize_nodes()?))
+      }),
+      ComponentData::ResizableCellLauncherData { missile_load, configured_size } => ("ResizableCellLauncherData", {
+        let missile_load = Element::new("MissileLoad", missile_load.serialize_nodes()?);
+        let configured_size = Element::new("ConfiguredSize", configured_size.serialize_nodes()?);
+        Nodes::from_iter([missile_load, configured_size])
+      })
+    };
 
-    Ok(todo!())
+    Ok(Element::with_attributes("ComponentData", xml::attributes!("xsi:type" = xsi_type), nodes))
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MagazineSaveData {
+  pub magazine_key: Box<str>,
+  pub munition_key: Box<str>,
+  pub quantity: usize
+}
+
+impl DeserializeElement for MagazineSaveData {
+  type Error = FormatError;
+
+  fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("MagSaveData")?;
+    let [magazine_key, munition_key, quantity] = element.children
+      .find_elements(["MagazineKey", "MunitionKey", "Quantity"])?;
+
+    let magazine_key = magazine_key.ok_or(xml::Error::missing_element("MagazineKey"))?
+      .children.deserialize::<String>()?.into_boxed_str();
+    let munition_key = munition_key.ok_or(xml::Error::missing_element("MunitionKey"))?
+      .children.deserialize::<String>()?.into_boxed_str();
+    let quantity = quantity.ok_or(xml::Error::missing_element("Quantity"))?
+      .children.deserialize::<usize>()?;
+
+    Ok(MagazineSaveData { magazine_key, munition_key, quantity })
+  }
+}
+
+impl SerializeElement for MagazineSaveData {
+  type Error = Infallible;
+
+  fn serialize_element(self) -> Result<Element, Self::Error> {
+    let magazine_key = Element::new("MagazineKey", self.magazine_key.serialize_nodes()?);
+    let munition_key = Element::new("MunitionKey", self.munition_key.serialize_nodes()?);
+    let quantity = Element::new("Quantity", self.quantity.serialize_nodes()?);
+
+    Ok(Element::new("MagSaveData", Nodes::from_iter([magazine_key, munition_key, quantity])))
   }
 }
 
@@ -214,9 +339,8 @@ impl SerializeElement for WeaponGroup {
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
     let member_keys = xml::serialize_named_elements(self.members, "string")?;
-    let member_keys = Element::new("MemberKeys", member_keys);
-    let attributes = xml::attributes!("Name" = self.name);
-    let weapon_group = Element::with_attributes("WepGroup", attributes, Nodes::new_one(member_keys));
+    let nodes = Nodes::new_one(Element::new("MemberKeys", member_keys));
+    let weapon_group = Element::with_attributes("WepGroup", xml::attributes!("Name" = self.name), nodes);
     Ok(weapon_group)
   }
 }
@@ -235,8 +359,27 @@ impl DeserializeElement for HullConfig {
   type Error = FormatError;
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("HullConfig")?;
+    let xsi_type = element.find_attribute("xsi:type")?;
 
-    Ok(todo!())
+    match xsi_type.as_ref() {
+      "RandomHullConfiguration" => {
+        let [primary_structure, secondary_structure, hull_tint, texture_variation] = element.children
+          .find_elements(["PrimaryStructure", "SecondaryStructure", "HullTint", "TextureVariation"])?;
+
+        let primary_structure = primary_structure.ok_or(xml::Error::missing_element("PrimaryStructure"))?
+          .children.deserialize::<[SegmentConfiguration; 3]>()?;
+        let secondary_structure = secondary_structure.ok_or(xml::Error::missing_element("SecondaryStructure"))?
+          .children.try_into_one_element()?.deserialize::<SecondaryStructureConfig>()?;
+        let hull_tint = hull_tint.ok_or(xml::Error::missing_element("HullTint"))?
+          .children.deserialize::<Color>()?;
+        let texture_variation = texture_variation.ok_or(xml::Error::missing_element("TextureVariation"))?
+          .children.deserialize::<Vector3<f32>>()?;
+
+        Ok(HullConfig::RandomHullConfiguration { primary_structure, secondary_structure, hull_tint, texture_variation })
+      },
+      _ => Err(FormatError::UnknownHullConfigType(xsi_type.clone()))
+    }
   }
 }
 
@@ -244,8 +387,16 @@ impl SerializeElement for HullConfig {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
-
-    Ok(todo!())
+    match self {
+      HullConfig::RandomHullConfiguration { primary_structure, secondary_structure, hull_tint, texture_variation } => {
+        let primary_structure = Element::new("PrimaryStructure", primary_structure.serialize_nodes()?);
+        let secondary_structure = Element::new("SecondaryStructure", Nodes::new_one(secondary_structure.serialize_element()?));
+        let hull_tint = Element::new("HullTint", hull_tint.serialize_nodes()?);
+        let texture_variation = Element::new("TextureVariation", texture_variation.serialize_nodes()?);
+        let nodes = Nodes::from_iter([primary_structure, secondary_structure, hull_tint, texture_variation]);
+        Ok(Element::with_attributes("HullConfig", xml::attributes!("xsi:type" = "RandomHullConfiguration"), nodes))
+      }
+    }
   }
 }
 
@@ -291,8 +442,14 @@ impl DeserializeElement for SecondaryStructureConfig {
   type Error = FormatError;
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("SecondaryStructureConfig")?;
+    let [key, segment, snap_point] = element.children.find_elements(["Key", "Segment", "SnapPoint"])?;
 
-    Ok(todo!())
+    let key = key.ok_or(xml::Error::missing_element("Key"))?.children.deserialize::<Uuid>()?;
+    let segment = segment.ok_or(xml::Error::missing_element("Segment"))?.children.deserialize::<usize>()?;
+    let snap_point = snap_point.ok_or(xml::Error::missing_element("SnapPoint"))?.children.deserialize::<usize>()?;
+
+    Ok(SecondaryStructureConfig { key, segment, snap_point })
   }
 }
 
@@ -300,8 +457,10 @@ impl SerializeElement for SecondaryStructureConfig {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
-
-    Ok(todo!())
+    let key = Element::new("Key", self.key.serialize_nodes()?);
+    let segment = Element::new("Segment", self.segment.serialize_nodes()?);
+    let snap_point = Element::new("SnapPoint", self.snap_point.serialize_nodes()?);
+    Ok(Element::new("SecondaryStructureConfig", Nodes::from_iter([key, segment, snap_point])))
   }
 }
 
@@ -312,8 +471,11 @@ impl DeserializeElement for MissileTemplate {
   type Error = FormatError;
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("MissileTemplate")?;
 
-    Ok(todo!())
+    // TODO
+
+    Ok(MissileTemplate {})
   }
 }
 
@@ -321,8 +483,9 @@ impl SerializeElement for MissileTemplate {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
+    // TODO
 
-    Ok(todo!())
+    Ok(Element::new("MissileTemplate", Nodes::default()))
   }
 }
 
