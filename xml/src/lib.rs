@@ -20,6 +20,15 @@ use std::vec::IntoIter as VecIntoIter;
 
 
 
+#[macro_export]
+macro_rules! attributes {
+  ($($name:literal = $value:expr),* $(,)?) => {
+    $crate::Attributes::from_iter([
+      $((std::boxed::Box::<str>::from($name), std::boxed::Box::<str>::from($value))),*
+    ])
+  };
+}
+
 pub trait DeserializeNodes: Sized {
   type Error;
 
@@ -53,6 +62,14 @@ impl DeserializeNodes for String {
 
   fn deserialize_nodes(nodes: Nodes) -> Result<Self, Self::Error> {
     nodes.try_into_text().map_err(Error::unexpected_element_expected_text)
+  }
+}
+
+impl DeserializeNodes for Box<str> {
+  type Error = Error;
+
+  fn deserialize_nodes(nodes: Nodes) -> Result<Self, Self::Error> {
+    String::deserialize_nodes(nodes).map(String::into_boxed_str)
   }
 }
 
@@ -99,6 +116,14 @@ impl SerializeElement for Element {
 }
 
 impl SerializeNodes for String {
+  type Error = Infallible;
+
+  fn serialize_nodes(self) -> Result<Nodes, Self::Error> {
+    Ok(Nodes::new_text(self))
+  }
+}
+
+impl SerializeNodes for Box<str> {
   type Error = Infallible;
 
   fn serialize_nodes(self) -> Result<Nodes, Self::Error> {
@@ -220,6 +245,13 @@ impl SerializeNodes for uuid::Uuid {
 
 
 
+pub fn serialize_named_elements<I, T>(iterator: I, name: &str) -> Result<Nodes, T::Error>
+where I: IntoIterator<Item = T>, T: SerializeNodes {
+  iterator.into_iter()
+    .map(|member| Ok(Element::new(name, member.serialize_nodes()?)))
+    .collect::<Result<Nodes, T::Error>>()
+}
+
 pub type Attributes = HashMap<Box<str>, Box<str>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -312,6 +344,19 @@ impl Nodes {
   #[inline]
   pub fn deserialize<T: DeserializeNodes>(self) -> Result<T, T::Error> {
     T::deserialize_nodes(self)
+  }
+
+  pub fn deserialize_named_elements<T, C>(self, name: &str) -> Result<C, DeserializeErrorWrapper<T::Error>>
+  where T: DeserializeNodes, C: FromIterator<T> {
+    self.into_iter_raw()
+      .filter_map(Node::into_element_ignore_whitespace)
+      .map(|element| {
+        let element = element.map_err(Error::unexpected_text)?;
+        element.expect_named(name)?;
+        element.children.deserialize::<T>()
+          .map_err(DeserializeErrorWrapper::Inner)
+      })
+      .collect()
   }
 
   /// If all of these nodes are text nodes, returns a string with their contents,
