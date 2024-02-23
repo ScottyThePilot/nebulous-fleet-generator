@@ -2,12 +2,11 @@ use crate::data::Faction;
 use crate::data::hulls::HullKey;
 use crate::data::components::ComponentKey;
 
-use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes};
+use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes, Attributes};
 
 pub use xml::uuid::Uuid;
 pub use xml::{read_nodes, write_nodes};
 
-use std::collections::{HashSet, HashMap};
 use std::convert::Infallible;
 
 
@@ -42,6 +41,30 @@ impl From<xml::DeserializeErrorWrapper<xml::Error>> for FormatError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Root<T> {
   pub element: T
+}
+
+impl<T> DeserializeNodes for Root<T> where T: DeserializeElement<Error = FormatError> {
+  type Error = FormatError;
+
+  fn deserialize_nodes(nodes: Nodes) -> Result<Self, Self::Error> {
+    nodes.try_into_one_element()
+      .map_err(FormatError::from)
+      .and_then(T::deserialize_element)
+      .map(|element| Root { element })
+  }
+}
+
+impl<T> SerializeNodes for Root<T> where T: SerializeElement<Error = Infallible> {
+  type Error = Infallible;
+
+  fn serialize_nodes(self) -> Result<Nodes, Self::Error> {
+    let mut element = self.element.serialize_element()?;
+    let mut attributes = Vec::from(std::mem::take(&mut element.attributes).list);
+    attributes.push(("xmlns:xsd".into(), "http://www.w3.org/2001/XMLSchema".into()));
+    attributes.push(("xmlns:xsi".into(), "http://www.w3.org/2001/XMLSchema-instance".into()));
+    element.attributes = Attributes::from(attributes);
+    Ok(Nodes::new_one(element))
+  }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -131,7 +154,7 @@ impl SerializeElement for Ship {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
-    let save_id = Element::with_attributes("SaveID", xsi_nil(), Nodes::default());
+    let save_id = Element::with_attributes("SaveID", xml::attributes!("xsi:nil" = "true"), Nodes::default());
     let key = Element::new("Key", self.key.serialize_nodes()?);
     let name = Element::new("Name", self.name.serialize_nodes()?);
     let cost = Element::new("Cost", self.cost.serialize_nodes()?);
@@ -224,7 +247,8 @@ impl DeserializeElement for ComponentData {
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
     element.expect_named("ComponentData")?;
-    let xsi_type = element.find_attribute("xsi:type")?;
+    let [xsi_type] = element.attributes.find_attributes(["xsi:type"])?;
+    let xsi_type = xsi_type.ok_or(xml::Error::missing_attribute("xsi:type"))?;
 
     match xsi_type.as_ref() {
       "BulkMagazineData" => {
@@ -315,7 +339,7 @@ impl SerializeElement for MagazineSaveData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WeaponGroup {
   pub name: String,
-  pub members: HashSet<Box<str>>
+  pub members: Vec<Box<str>>
 }
 
 impl DeserializeElement for WeaponGroup {
@@ -323,14 +347,15 @@ impl DeserializeElement for WeaponGroup {
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
     element.expect_named("WepGroup")?;
-    let name = element.find_attribute("Name")?.as_ref().to_owned();
+    let [name] = element.attributes.find_attributes(["Name"])?;
+    let name = name.ok_or(xml::Error::missing_attribute("Name"))?;
 
     let member_keys = element.children.try_into_one_element()?;
     member_keys.expect_named("MemberKeys")?;
 
-    let members = member_keys.children.deserialize_named_elements::<Box<str>, HashSet<Box<str>>>("string")?;
+    let members = member_keys.children.deserialize_named_elements::<Box<str>, Vec<Box<str>>>("string")?;
 
-    Ok(WeaponGroup { name, members })
+    Ok(WeaponGroup { name: String::from(name), members })
   }
 }
 
@@ -360,7 +385,8 @@ impl DeserializeElement for HullConfig {
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
     element.expect_named("HullConfig")?;
-    let xsi_type = element.find_attribute("xsi:type")?;
+    let [xsi_type] = element.attributes.find_attributes(["xsi:type"])?;
+    let xsi_type = xsi_type.ok_or(xml::Error::missing_attribute("xsi:type"))?;
 
     match xsi_type.as_ref() {
       "RandomHullConfiguration" => {
@@ -593,10 +619,4 @@ impl<T> SerializeNodes for Vector2<T> where T: SerializeNodes {
 
     Ok(Nodes::from_iter([x, y]))
   }
-}
-
-
-
-fn xsi_nil() -> HashMap<Box<str>, Box<str>> {
-  xml::attributes!("xsi:nil" = "true")
 }

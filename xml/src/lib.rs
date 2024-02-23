@@ -2,9 +2,9 @@
 
 pub extern crate uuid;
 
-use rxml::{EventRead, PullParser};
-use rxml::parser::{ResolvedEvent, ResolvedQName};
-use rxml::strings::{CDataStr, NameStr};
+use rxml::{EventRead, PullDriver};
+use rxml::parser::{RawEvent, RawParser};
+use rxml::strings::{CDataStr, NcName, NameStr};
 use rxml::writer::{Encoder, SimpleNamespaces, Item};
 pub use rxml::parser::XmlVersion;
 use thiserror::Error;
@@ -301,8 +301,6 @@ where I: IntoIterator<Item = T>, T: SerializeNodes {
     .collect::<Result<Nodes, T::Error>>()
 }
 
-pub type Attributes = HashMap<Box<str>, Box<str>>;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
   Text(String),
@@ -352,7 +350,7 @@ pub struct Element {
 
 impl Element {
   pub fn new(name: impl Into<Box<str>>, children: impl Into<Nodes>) -> Self {
-    Element { name: name.into(), attributes: HashMap::new(), children: children.into() }
+    Element { name: name.into(), attributes: Attributes::new(), children: children.into() }
   }
 
   pub fn with_attributes(name: impl Into<Box<str>>, attributes: Attributes, children: impl Into<Nodes>) -> Self {
@@ -367,12 +365,6 @@ impl Element {
   pub fn expect_named(&self, name: &str) -> Result<(), Error> {
     if self.name.as_ref() != name { Err(Error::UnexpectedElementExpectedElement(self.clone(), name.into())) } else { Ok(()) }
   }
-
-  pub fn find_attribute(&self, attribute_name: &str) -> Result<&Box<str>, Error> {
-    self.attributes.get(attribute_name).ok_or_else(|| {
-      Error::MissingAttribute(self.attributes.clone(), attribute_name.into())
-    })
-  }
 }
 
 #[repr(transparent)]
@@ -382,6 +374,10 @@ pub struct Nodes {
 }
 
 impl Nodes {
+  pub fn new() -> Self {
+    Nodes::default()
+  }
+
   pub fn new_text(text: impl Into<String>) -> Self {
     Nodes { nodes: Box::new([Node::Text(text.into())]) }
   }
@@ -501,7 +497,7 @@ impl Nodes {
 
 impl Default for Nodes {
   fn default() -> Self {
-    Nodes { nodes: Box::new([]) }
+    Nodes { nodes: Vec::new().into_boxed_slice() }
   }
 }
 
@@ -572,12 +568,6 @@ impl From<Nodes> for Box<[Node]> {
   }
 }
 
-impl From<Nodes> for Vec<Node> {
-  fn from(value: Nodes) -> Self {
-    value.nodes.into_vec()
-  }
-}
-
 impl Deref for Nodes {
   type Target = [Node];
 
@@ -589,6 +579,79 @@ impl Deref for Nodes {
 impl DerefMut for Nodes {
   fn deref_mut(&mut self) -> &mut Self::Target {
     self.nodes.as_mut()
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attributes {
+  pub list: Box<[(Box<str>, Box<str>)]>
+}
+
+impl Attributes {
+  pub fn new() -> Self {
+    Attributes::default()
+  }
+
+  pub fn find_attributes<const N: usize>(self, names: [&str; N]) -> Result<[Option<Box<str>>; N], Error> {
+    let mut attributes: [_; N] = std::array::from_fn(|_| None);
+    for (name, value) in self.list.into_vec().into_iter() {
+      let Some(i) = names.iter().position(|&n| n == name.as_ref()) else { continue };
+      if let Some(value) = attributes[i].replace(value) {
+        return Err(Error::UnexpectedAttributeDuplicate(name, value));
+      };
+    };
+
+    Ok(attributes)
+  }
+}
+
+impl Default for Attributes {
+  fn default() -> Self {
+    Attributes { list: Vec::new().into_boxed_slice() }
+  }
+}
+
+impl<const N: usize> From<[(Box<str>, Box<str>); N]> for Attributes {
+  fn from(value: [(Box<str>, Box<str>); N]) -> Self {
+    Attributes { list: Box::new(value) }
+  }
+}
+
+impl From<Box<[(Box<str>, Box<str>)]>> for Attributes {
+  fn from(value: Box<[(Box<str>, Box<str>)]>) -> Self {
+    Attributes { list: value }
+  }
+}
+
+impl From<Vec<(Box<str>, Box<str>)>> for Attributes {
+  fn from(value: Vec<(Box<str>, Box<str>)>) -> Self {
+    Attributes { list: value.into_boxed_slice() }
+  }
+}
+
+impl From<Attributes> for Box<[(Box<str>, Box<str>)]> {
+  fn from(value: Attributes) -> Self {
+    value.list
+  }
+}
+
+impl FromIterator<(Box<str>, Box<str>)> for Attributes {
+  fn from_iter<T: IntoIterator<Item = (Box<str>, Box<str>)>>(iter: T) -> Self {
+    Attributes { list: iter.into_iter().collect() }
+  }
+}
+
+impl Deref for Attributes {
+  type Target = [(Box<str>, Box<str>)];
+
+  fn deref(&self) -> &Self::Target {
+    &self.list
+  }
+}
+
+impl DerefMut for Attributes {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.list
   }
 }
 
@@ -665,24 +728,33 @@ fn push_element_recursive(
 }
 
 pub fn read_nodes<R: BufRead>(reader: R) -> Result<Nodes, Error> {
-  pull_nodes_recursive(&mut PullParser::new(reader))
+  pull_nodes_recursive(&mut PullDriver::wrap(reader, rxml::Lexer::new(), RawParser::new()))
 }
 
-fn pull_nodes_recursive<R: BufRead>(reader: &mut PullParser<R>) -> Result<Nodes, Error> {
+fn pull_nodes_recursive<R: BufRead>(reader: &mut PullDriver<R, RawParser>) -> Result<Nodes, Error> {
   let mut nodes = Vec::new();
+  let mut element = None;
   while let Some(resolved_event) = reader.read()? {
     match resolved_event {
-      ResolvedEvent::XmlDeclaration(_, _) => (),
-      ResolvedEvent::StartElement(_, name, attributes) => {
+      RawEvent::XmlDeclaration(_, _) => (),
+      RawEvent::ElementHeadOpen(_, name) => {
         let name = join_name(name);
-        let attributes = attributes.into_iter()
-          .map(|(key, value)| (join_name(key), String::from(value).into_boxed_str()))
-          .collect::<HashMap<Box<str>, Box<str>>>();
+        let prev = element.replace((name, Vec::new()));
+        debug_assert!(prev.is_none());
+      },
+      RawEvent::ElementHeadClose(_) => {
+        let (name, attributes) = element.take().unwrap();
+        let attributes = Attributes::from(attributes);
         let children = pull_nodes_recursive(reader)?;
         nodes.push(Node::Element(Element { name, attributes, children }));
       },
-      ResolvedEvent::EndElement(_) => break,
-      ResolvedEvent::Text(_, text) => {
+      RawEvent::Attribute(_, name, value) => {
+        let name = join_name(name);
+        let value = String::from(value).into_boxed_str();
+        element.as_mut().unwrap().1.push((name, value));
+      },
+      RawEvent::ElementFoot(_) => break,
+      RawEvent::Text(_, text) => {
         let content = String::from(text);
         nodes.push(Node::Text(content));
       }
@@ -692,10 +764,10 @@ fn pull_nodes_recursive<R: BufRead>(reader: &mut PullParser<R>) -> Result<Nodes,
   Ok(Nodes::from(nodes))
 }
 
-fn join_name(name: ResolvedQName) -> Box<str> {
+fn join_name(name: (Option<NcName>, NcName)) -> Box<str> {
   let (namespace, local) = name;
   String::into_boxed_str(match namespace {
-    Some(namespace) => format!("{}:{}", namespace.as_str(), local.as_str()),
+    Some(ns) => format!("{}:{}", ns.as_str(), local.as_str()),
     None => String::from(local)
   })
 }
@@ -708,8 +780,6 @@ pub enum Error {
   XmlEncoderError(#[from] rxml::writer::EncodeError),
   #[error("undeclared namespace")]
   XmlEncoderPrefixError(rxml::writer::PrefixError),
-  #[error("unexpected duplicate element {:?}", .0.name)]
-  UnexpectedElementDuplicate(Element),
   #[error("unexpected element {:?}, expected text", .0.name)]
   UnexpectedElementExpectedText(Element),
   #[error("unexpected element {:?}, expected element {:?}", .0.name, .1)]
@@ -718,10 +788,14 @@ pub enum Error {
   UnexpectedTextExpectedElement(String, Box<str>),
   #[error("unexpected text {:?}", .0)]
   UnexpectedText(String),
+  #[error("unexpected duplicate element {:?}", .0.name)]
+  UnexpectedElementDuplicate(Element),
+  #[error("unexpected duplicate attribute {:?} {:?}", .0, .1)]
+  UnexpectedAttributeDuplicate(Box<str>, Box<str>),
   #[error("missing element {:?}", .0)]
   MissingElement(Box<str>),
-  #[error("missing attribute {:?} in attributes map {:?}", .1, .0)]
-  MissingAttribute(HashMap<Box<str>, Box<str>>, Box<str>),
+  #[error("missing attribute {:?}", .0)]
+  MissingAttribute(Box<str>),
   #[error("incorrect nodes count: found {}, expected {}", .0.len(), .1)]
   IncorrectNodesCount(Vec<Node>, usize),
   #[error("incorrect elements count: found {}, expected {}", .0.len(), .1)]
@@ -753,6 +827,10 @@ impl Error {
 
   pub fn missing_element(name: impl Into<Box<str>>) -> Self {
     Error::MissingElement(name.into())
+  }
+
+  pub fn missing_attribute(name: impl Into<Box<str>>) -> Self {
+    Error::MissingAttribute(name.into())
   }
 }
 
