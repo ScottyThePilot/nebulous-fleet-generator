@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 /// `P(A or B or C or N ...)`
-pub fn probability_any(list: &[f32]) -> f32 {
+pub(crate) fn probability_any(list: &[f32]) -> f32 {
   match list {
     &[] => f32::NAN,
     &[a] => a,

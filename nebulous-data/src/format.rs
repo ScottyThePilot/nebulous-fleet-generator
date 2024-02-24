@@ -1,5 +1,6 @@
 use crate::data::Faction;
 use crate::data::hulls::HullKey;
+use crate::data::missiles::MissileBodyKey;
 use crate::data::components::ComponentKey;
 
 use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes, Attributes};
@@ -8,6 +9,9 @@ pub use xml::uuid::Uuid;
 pub use xml::{read_nodes, write_nodes};
 
 use std::convert::Infallible;
+use std::fmt;
+use std::num::NonZeroUsize;
+use std::str::FromStr;
 
 
 
@@ -88,7 +92,7 @@ impl DeserializeElement for Fleet {
     let name = name.ok_or(xml::Error::missing_element("Name"))?.children.deserialize::<String>()?;
     let total_points = total_points.ok_or(xml::Error::missing_element("TotalPoints"))?.children.deserialize::<usize>()?;
     let faction_key = faction_key.ok_or(xml::Error::missing_element("FactionKey"))?.children.deserialize::<Faction>()?;
-    let description = description.map(|description| description.children.deserialize::<String>()).transpose()?;
+    let description = description.map(|description| description.children.deserialize::<String>()).transpose()?.filter(|d| !d.is_empty());
     let ships = ships.ok_or(xml::Error::missing_element("Ships"))?.children.deserialize::<Vec<Ship>>()?;
     let missile_types = missile_types.ok_or(xml::Error::missing_element("MissileTypes"))?.children.deserialize::<Vec<MissileTemplate>>()?;
 
@@ -138,13 +142,14 @@ impl DeserializeElement for Ship {
     let key = key.ok_or(xml::Error::missing_element("Key"))?.children.deserialize::<Uuid>()?;
     let name = name.ok_or(xml::Error::missing_element("Name"))?.children.deserialize::<String>()?;
     let cost = cost.ok_or(xml::Error::missing_element("Cost"))?.children.deserialize::<usize>()?;
-    let callsign = callsign.map(|callsign| callsign.children.deserialize::<String>()).transpose()?;
+    let callsign = callsign.map(|callsign| callsign.children.deserialize::<String>()).transpose()?.filter(|c| !c.is_empty());
     let number = number.ok_or(xml::Error::missing_element("Number"))?.children.deserialize::<usize>()?;
     let hull_type = hull_type.ok_or(xml::Error::missing_element("HullType"))?.children.deserialize::<HullKey>()?;
     let hull_config = hull_config.map(|hull_config| hull_config.deserialize::<Box<HullConfig>>()).transpose()?;
     let socket_map = socket_map.ok_or(xml::Error::missing_element("SocketMap"))?.children.deserialize::<Vec<HullSocket>>()?;
     let weapon_groups = weapon_groups.ok_or(xml::Error::missing_element("WeaponGroups"))?.children.deserialize::<Vec<WeaponGroup>>()?;
     let missile_types = missile_types.ok_or(xml::Error::missing_element("TemplateMissileTypes"))?.children.deserialize::<Vec<MissileTemplate>>()?;
+
 
     Ok(Ship { key, name, cost, callsign, number, hull_type, hull_config, socket_map, weapon_groups, missile_types })
   }
@@ -457,7 +462,7 @@ impl SerializeElement for SegmentConfiguration {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecondaryStructureConfig {
   pub key: Uuid,
   pub segment: usize,
@@ -490,8 +495,20 @@ impl SerializeElement for SecondaryStructureConfig {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MissileTemplate {}
+#[derive(Debug, Clone, PartialEq)]
+pub struct MissileTemplate {
+  pub associated_template_name: Option<String>,
+  pub designation: String,
+  pub nickname: String,
+  pub description: String,
+  pub long_description: String,
+  pub cost: usize,
+  pub body_key: MissileBodyKey,
+  pub template_key: Uuid,
+  pub base_color: Color,
+  pub stripe_color: Color,
+  pub sockets: Vec<()>
+}
 
 impl DeserializeElement for MissileTemplate {
   type Error = FormatError;
@@ -501,7 +518,7 @@ impl DeserializeElement for MissileTemplate {
 
     // TODO
 
-    Ok(MissileTemplate {})
+    Ok(todo!())
   }
 }
 
@@ -514,6 +531,128 @@ impl SerializeElement for MissileTemplate {
     Ok(Element::new("MissileTemplate", Nodes::default()))
   }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissileSocket {
+  pub size: NonZeroUsize,
+  pub installed_component: MissileComponent
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissileComponent {
+  pub component_key: MissileComponentKey,
+  pub settings: MissileComponentSettings
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MissileComponentSettings {
+  ActiveSeekerSettings {},
+  CommandSeekerSettings {},
+  CruiseGuidanceSettings {},
+  DirectGuidanceSettings {},
+  MissileEngineSettings {},
+  PassiveARHSeekerSettings {},
+  PassiveSeekerSettings {},
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MissileComponentKey {
+  // Seeker Components
+  CommandReceiver,
+  FixedActiveRadarSeeker,
+  SteerableActiveRadarSeeker,
+  SteerableExtendedActiveRadarSeeker,
+  FixedSemiActiveRadarSeeker,
+  FixedAntiRadiationSeeker,
+  ElectroOpticalSeeker,
+  WakeHomingSeeker,
+  // Auxilliary Components
+  ColdGasBottle,
+  DecoyLauncher,
+  ClusterDecoyLauncher,
+  FastStartupModule,
+  HardenedSkin,
+  RadarAbsorbentCoating,
+  SelfScreeningJammer,
+  BoostedSelfScreeningJammer,
+  // Avionics Components
+  DirectGuidance,
+  CruiseGuidance,
+  // Payload Components
+  HEImpact,
+  HEKineticPenetrator,
+  BlastFragmentation,
+  BlastFragmentationEL
+}
+
+impl MissileComponentKey {
+  pub const fn save_key(self) -> &'static str {
+    match self {
+      Self::CommandReceiver => "Stock/Command Receiver",
+      Self::FixedActiveRadarSeeker => "Stock/Fixed Active Radar Seeker",
+      Self::SteerableActiveRadarSeeker => "Stock/Steerable Active Radar Seeker",
+      Self::SteerableExtendedActiveRadarSeeker => "Stock/Steerable Extended Active Radar Seeker",
+      Self::FixedSemiActiveRadarSeeker => "Stock/Fixed Semi-Active Radar Seeker",
+      Self::FixedAntiRadiationSeeker => "Stock/Fixed Anti-Radiation Seeker",
+      Self::ElectroOpticalSeeker => "Stock/Electro-Optical Seeker",
+      Self::WakeHomingSeeker => "Stock/Wake-Homing Seeker",
+      Self::ColdGasBottle => "Stock/Cold Gas Bottle",
+      Self::DecoyLauncher => "Stock/Decoy Launcher",
+      Self::ClusterDecoyLauncher => "Stock/Cluster Decoy Launcher",
+      Self::FastStartupModule => "Stock/Fast Startup Module",
+      Self::HardenedSkin => "Stock/Hardened Skin",
+      Self::RadarAbsorbentCoating => "Stock/Radar Absorbent Coating",
+      Self::SelfScreeningJammer => "Stock/Self-Screening Jammer",
+      Self::BoostedSelfScreeningJammer => "Stock/Boosted Self-Screening Jammer",
+      Self::DirectGuidance => "Stock/Direct Guidance",
+      Self::CruiseGuidance => "Stock/Cruise Guidance",
+      Self::HEImpact => "Stock/HE Impact",
+      Self::HEKineticPenetrator => "Stock/HE Kinetic Penetrator",
+      Self::BlastFragmentation => "Stock/Blast Fragmentation",
+      Self::BlastFragmentationEL => "Stock/Blast Fragmentation EL",
+    }
+  }
+}
+
+impl FromStr for MissileComponentKey {
+  type Err = crate::data::InvalidKey;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "Stock/Command Receiver" => Ok(Self::CommandReceiver),
+      "Stock/Fixed Active Radar Seeker" => Ok(Self::FixedActiveRadarSeeker),
+      "Stock/Steerable Active Radar Seeker" => Ok(Self::SteerableActiveRadarSeeker),
+      "Stock/Steerable Extended Active Radar Seeker" => Ok(Self::SteerableExtendedActiveRadarSeeker),
+      "Stock/Fixed Semi-Active Radar Seeker" => Ok(Self::FixedSemiActiveRadarSeeker),
+      "Stock/Fixed Anti-Radiation Seeker" => Ok(Self::FixedAntiRadiationSeeker),
+      "Stock/Electro-Optical Seeker" => Ok(Self::ElectroOpticalSeeker),
+      "Stock/Wake-Homing Seeker" => Ok(Self::WakeHomingSeeker),
+      "Stock/Cold Gas Bottle" => Ok(Self::ColdGasBottle),
+      "Stock/Decoy Launcher" => Ok(Self::DecoyLauncher),
+      "Stock/Cluster Decoy Launcher" => Ok(Self::ClusterDecoyLauncher),
+      "Stock/Fast Startup Module" => Ok(Self::FastStartupModule),
+      "Stock/Hardened Skin" => Ok(Self::HardenedSkin),
+      "Stock/Radar Absorbent Coating" => Ok(Self::RadarAbsorbentCoating),
+      "Stock/Self-Screening Jammer" => Ok(Self::SelfScreeningJammer),
+      "Stock/Boosted Self-Screening Jammer" => Ok(Self::BoostedSelfScreeningJammer),
+      "Stock/Direct Guidance" => Ok(Self::DirectGuidance),
+      "Stock/Cruise Guidance" => Ok(Self::CruiseGuidance),
+      "Stock/HE Impact" => Ok(Self::HEImpact),
+      "Stock/HE Kinetic Penetrator" => Ok(Self::HEKineticPenetrator),
+      "Stock/Blast Fragmentation" => Ok(Self::BlastFragmentation),
+      "Stock/Blast Fragmentation EL" => Ok(Self::BlastFragmentationEL),
+      _ => Err(crate::data::InvalidKey)
+    }
+  }
+}
+
+impl fmt::Display for MissileComponentKey {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.save_key())
+  }
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Color {

@@ -1,3 +1,10 @@
+#![warn(
+  future_incompatible,
+  missing_copy_implementations,
+  missing_debug_implementations,
+  unreachable_pub
+)]
+
 extern crate itertools;
 #[macro_use]
 extern crate thiserror;

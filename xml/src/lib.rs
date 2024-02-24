@@ -9,7 +9,6 @@ use rxml::writer::{Encoder, SimpleNamespaces, Item};
 pub use rxml::parser::XmlVersion;
 use thiserror::Error;
 
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::io::BufRead;
 use std::iter::Filter;
@@ -756,7 +755,11 @@ fn pull_nodes_recursive<R: BufRead>(reader: &mut PullDriver<R, RawParser>) -> Re
       RawEvent::ElementFoot(_) => break,
       RawEvent::Text(_, text) => {
         let content = String::from(text);
-        nodes.push(Node::Text(content));
+        let content_trimmed = content.trim();
+        if !content_trimmed.is_empty() {
+          let content = if content.len() == content_trimmed.len() { content } else { content_trimmed.to_owned() };
+          nodes.push(Node::Text(content));
+        };
       }
     };
   };
