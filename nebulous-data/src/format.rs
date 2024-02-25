@@ -1,4 +1,4 @@
-use crate::data::Faction;
+use crate::data::{Faction, MissileSize};
 use crate::data::hulls::HullKey;
 use crate::data::missiles::{MissileBodyKey, SeekerMode, Maneuvers, EngineSettings};
 use crate::data::components::ComponentKey;
@@ -27,7 +27,9 @@ pub enum FormatError {
   #[error("unknown hull config type {0:?}")]
   UnknownHullConfigType(Box<str>),
   #[error("unknown hull component data type {0:?}")]
-  UnknownComponentDataType(Box<str>)
+  UnknownComponentDataType(Box<str>),
+  #[error("unknown missile settings type {0:?}")]
+  UnknownMissileSettingsType(Box<str>)
 }
 
 impl From<xml::DeserializeErrorWrapper<FormatError>> for FormatError {
@@ -545,6 +547,108 @@ pub struct MissileComponent {
   pub settings: Option<MissileComponentSettings>
 }
 
+impl MissileComponent {
+  const CHILD_ELEMENTS: [&'static str; 12] = [
+    "ComponentKey", "Mode", "RejectUnvalidated", "TargetType", "DetectPDTargets", "Role", "HotLaunch",
+    "SelfDestructOnLost", "Maneuvers", "DefensiveDoctrine", "ApproachAngleControl", "BalanceValues"
+  ];
+}
+
+impl DeserializeElement for MissileComponent {
+  type Error = FormatError;
+
+  fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("InstalledComponent")?;
+    let [xsi_type] = element.attributes.find_attributes(["xsi:type"])?;
+
+    let [
+      component_key, mode, reject_unvalidated, target_type, detect_pd_targets, role, hot_launch,
+      self_destruct_on_lost, maneuvers, defensive_doctrine, approach_angle_control, balance_values
+    ] = element.children.find_elements(Self::CHILD_ELEMENTS)?;
+
+    let mode = mode.ok_or(xml::Error::missing_element("Mode"))
+      .and_then(|element| element.children.deserialize::<SeekerMode>());
+    let reject_unvalidated = reject_unvalidated.ok_or(xml::Error::missing_element("RejectUnvalidated"))
+      .and_then(|element| element.children.deserialize::<bool>());
+    let target_type = target_type.ok_or(xml::Error::missing_element("TargetType"))
+      .and_then(|element| element.children.deserialize::<AntiRadiationTargetType>());
+    let detect_pd_targets = detect_pd_targets.ok_or(xml::Error::missing_element("DetectPDTargets"))
+      .and_then(|element| element.children.deserialize::<bool>());
+    let role = role.ok_or(xml::Error::missing_element("Role"))
+      .and_then(|element| element.children.deserialize::<MissileRole>());
+    let hot_launch = hot_launch.ok_or(xml::Error::missing_element("HotLaunch"))
+      .and_then(|element| element.children.deserialize::<bool>());
+    let self_destruct_on_lost = self_destruct_on_lost.ok_or(xml::Error::missing_element("SelfDestructOnLost"))
+      .and_then(|element| element.children.deserialize::<bool>());
+    let maneuvers = maneuvers.ok_or(xml::Error::missing_element("Maneuvers"))
+      .and_then(|element| element.children.deserialize::<Maneuvers>());
+    let defensive_doctrine = defensive_doctrine.ok_or(xml::Error::missing_element("DefensiveDoctrine"))
+      .map_err(FormatError::from).and_then(DefensiveDoctrine::deserialize_element);
+    let approach_angle_control = approach_angle_control.ok_or(xml::Error::missing_element("ApproachAngleControl"))
+      .and_then(|element| element.children.deserialize::<bool>());
+    let balance_values = balance_values.ok_or(xml::Error::missing_element("BalanceValues"));
+
+    let component_key = component_key.map(|element| element.children.deserialize::<MissileComponentKey>()).transpose()?;
+    let settings = xsi_type.as_deref().map(|xsi_type| match xsi_type {
+      "ActiveSeekerSettings" => Ok(MissileComponentSettings::ActiveSeekerSettings {
+        mode: mode?,
+        reject_unvalidated: reject_unvalidated?,
+        detect_pd_targets: detect_pd_targets?
+      }),
+      "CommandSeekerSettings" => Ok(MissileComponentSettings::CommandSeekerSettings {
+        mode: mode?
+      }),
+      "DirectGuidanceSettings" => Ok(MissileComponentSettings::DirectGuidanceSettings {
+        hot_launch: hot_launch?,
+        self_destruct_on_lost: self_destruct_on_lost?,
+        maneuvers: maneuvers?,
+        defensive_doctrine: if role? == MissileRole::Defensive { Some(defensive_doctrine?) } else { None },
+        approach_angle_control: approach_angle_control?
+      }),
+      "CruiseGuidanceSettings" => Ok(MissileComponentSettings::CruiseGuidanceSettings {
+        hot_launch: hot_launch?,
+        self_destruct_on_lost: self_destruct_on_lost?,
+        maneuvers: maneuvers?,
+        defensive_doctrine: if role? == MissileRole::Defensive { Some(defensive_doctrine?) } else { None }
+      }),
+      "MissileEngineSettings" => Ok(MissileComponentSettings::MissileEngineSettings {
+        balance_values: balance_values.and_then(|element| {
+          let [a, b, c] = element.children.find_elements(["A", "B", "C"])?;
+          let a = a.ok_or(xml::Error::missing_element("A"))?.children.deserialize::<f32>()?;
+          let b = b.ok_or(xml::Error::missing_element("B"))?.children.deserialize::<f32>()?;
+          let c = c.ok_or(xml::Error::missing_element("C"))?.children.deserialize::<f32>()?;
+          Ok(EngineSettings::from_array([a, b, c]))
+        })?
+      }),
+      "PassiveARHSeekerSettings" => Ok(MissileComponentSettings::PassiveARHSeekerSettings {
+        mode: mode?,
+        reject_unvalidated: reject_unvalidated?,
+        home_on_jam: target_type? == AntiRadiationTargetType::JammingOnly
+      }),
+      "PassiveSeekerSettings" => Ok(MissileComponentSettings::PassiveSeekerSettings {
+        mode: mode?,
+        reject_unvalidated: reject_unvalidated?,
+        detect_pd_targets: detect_pd_targets?
+      }),
+      _ => Err(FormatError::UnknownMissileSettingsType(xsi_type.into()))
+    }).transpose()?;
+
+    Ok(MissileComponent {
+      component_key,
+      settings
+    })
+  }
+}
+
+impl SerializeElement for MissileComponent {
+  type Error = Infallible;
+
+  fn serialize_element(self) -> Result<Element, Self::Error> {
+
+    Ok(todo!())
+  }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MissileComponentSettings {
   ActiveSeekerSettings {
@@ -558,19 +662,19 @@ pub enum MissileComponentSettings {
     mode: SeekerMode
   },
   DirectGuidanceSettings {
-    // HotLaunch, SelfDestructOnLost, Maneuvers, DefensiveDoctrine, ApproachAngleControl
+    // Role, HotLaunch, SelfDestructOnLost, Maneuvers, DefensiveDoctrine, ApproachAngleControl
     hot_launch: bool,
     self_destruct_on_lost: bool,
     maneuvers: Maneuvers,
-    defensive_doctrine: Option<MissileDefensiveDoctrine>,
+    defensive_doctrine: Option<DefensiveDoctrine>,
     approach_angle_control: bool
   },
   CruiseGuidanceSettings {
-    // HotLaunch, SelfDestructOnLost, Maneuvers, DefensiveDoctrine
+    // Role, HotLaunch, SelfDestructOnLost, Maneuvers, DefensiveDoctrine
     hot_launch: bool,
     self_destruct_on_lost: bool,
     maneuvers: Maneuvers,
-    defensive_doctrine: Option<MissileDefensiveDoctrine>
+    defensive_doctrine: Option<DefensiveDoctrine>
   },
   MissileEngineSettings {
     // BalanceValues
@@ -591,13 +695,83 @@ pub enum MissileComponentSettings {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MissileDefensiveDoctrine {
-  pub target_size_mask: [bool; 3],
-  pub target_type: (),
+pub struct DefensiveDoctrine {
+  pub target_size_mask: MissileSizeMask,
+  pub target_type: DefensiveTargetType,
   pub target_size_ordering: Ordering,
   pub salvo_size: usize,
   pub farthest_first: bool
 }
+
+// Defensive doctrine settings are still serialized for offensive missiles,
+// but they will usually have these settings here.
+impl Default for DefensiveDoctrine {
+  fn default() -> Self {
+    DefensiveDoctrine {
+      target_size_mask: MissileSizeMask::default(),
+      target_type: DefensiveTargetType::All,
+      target_size_ordering: Ordering::Descending,
+      salvo_size: 0,
+      farthest_first: false
+    }
+  }
+}
+
+impl DeserializeElement for DefensiveDoctrine {
+  type Error = FormatError;
+
+  fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+
+    Ok(todo!())
+  }
+}
+
+impl SerializeElement for DefensiveDoctrine {
+  type Error = Infallible;
+
+  fn serialize_element(self) -> Result<Element, Self::Error> {
+
+    Ok(todo!())
+  }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum DefensiveTargetType {
+  #[default] All, Conventional, Hybrid
+}
+
+impl DefensiveTargetType {
+  pub const fn to_str(self) -> &'static str {
+    match self {
+      DefensiveTargetType::All => "All",
+      DefensiveTargetType::Conventional => "Conventional",
+      DefensiveTargetType::Hybrid => "Hybrid"
+    }
+  }
+}
+
+impl FromStr for DefensiveTargetType {
+  type Err = crate::data::InvalidKey;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "All" => Ok(DefensiveTargetType::All),
+      "Conventional" => Ok(DefensiveTargetType::Conventional),
+      "Hybrid" => Ok(DefensiveTargetType::Hybrid),
+      _ => Err(crate::data::InvalidKey)
+    }
+  }
+}
+
+impl fmt::Display for DefensiveTargetType {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.to_str())
+  }
+}
+
+xml::impl_deserialize_nodes_parse!(DefensiveTargetType);
+xml::impl_serialize_nodes_display!(DefensiveTargetType);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -700,20 +874,141 @@ impl fmt::Display for MissileComponentKey {
 xml::impl_deserialize_nodes_parse!(MissileComponentKey);
 xml::impl_serialize_nodes_display!(MissileComponentKey);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MissileSizeMask {
+  pub size1: bool,
+  pub size2: bool,
+  pub size3: bool
+}
 
+impl Default for MissileSizeMask {
+  fn default() -> Self {
+    MissileSizeMask {
+      size1: false,
+      size2: true,
+      size3: true
+    }
+  }
+}
+
+impl FromStr for MissileSizeMask {
+  type Err = InvalidMissileSizeMask;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let mut out = [false; 3];
+    for ch in s.chars().filter(|ch| !ch.is_whitespace()) {
+      let n = ch.to_digit(3).ok_or(InvalidMissileSizeMask(ch))?;
+      out[n as usize] = true;
+    };
+
+    Ok(MissileSizeMask {
+      size1: out[0],
+      size2: out[1],
+      size3: out[2]
+    })
+  }
+}
+
+impl fmt::Display for MissileSizeMask {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    if self.size1 { f.write_str("0")? };
+    if self.size2 { f.write_str("1")? };
+    if self.size3 { f.write_str("2")? };
+    Ok(())
+  }
+}
+
+xml::impl_deserialize_nodes_parse!(MissileSizeMask);
+xml::impl_serialize_nodes_display!(MissileSizeMask);
+
+#[derive(Debug, Error, Clone, Copy)]
+#[error("invalid missile size mask: unexpected char {0:?}")]
+pub struct InvalidMissileSizeMask(char);
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum MissileRole {
+  #[default] Offensive, Defensive
+}
+
+impl MissileRole {
+  pub const fn to_str(self) -> &'static str {
+    match self {
+      MissileRole::Offensive => "Offensive",
+      MissileRole::Defensive => "Defensive"
+    }
+  }
+}
+
+impl FromStr for MissileRole {
+  type Err = crate::data::InvalidKey;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "Offensive" => Ok(MissileRole::Offensive),
+      "Defensive" => Ok(MissileRole::Defensive),
+      _ => Err(crate::data::InvalidKey)
+    }
+  }
+}
+
+impl fmt::Display for MissileRole {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.to_str())
+  }
+}
+
+xml::impl_deserialize_nodes_parse!(MissileRole);
+xml::impl_serialize_nodes_display!(MissileRole);
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum AntiRadiationTargetType {
+  #[default] All, JammingOnly
+}
+
+impl AntiRadiationTargetType {
+  pub const fn to_str(self) -> &'static str {
+    match self {
+      AntiRadiationTargetType::All => "All",
+      AntiRadiationTargetType::JammingOnly => "JammingOnly"
+    }
+  }
+}
+
+impl FromStr for AntiRadiationTargetType {
+  type Err = crate::data::InvalidKey;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "All" => Ok(AntiRadiationTargetType::All),
+      "JammingOnly" => Ok(AntiRadiationTargetType::JammingOnly),
+      _ => Err(crate::data::InvalidKey)
+    }
+  }
+}
+
+impl fmt::Display for AntiRadiationTargetType {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.to_str())
+  }
+}
+
+xml::impl_deserialize_nodes_parse!(AntiRadiationTargetType);
+xml::impl_serialize_nodes_display!(AntiRadiationTargetType);
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum Ordering {
-  Ascending,
-  Descending
+  Ascending, #[default] Descending, Equal
 }
 
 impl Ordering {
   pub const fn to_str(self) -> &'static str {
     match self {
       Self::Ascending => "Ascending",
-      Self::Descending => "Descending"
+      Self::Descending => "Descending",
+      Self::Equal => "Equal"
     }
   }
 }
@@ -725,6 +1020,7 @@ impl FromStr for Ordering {
     match s {
       "Ascending" => Ok(Self::Ascending),
       "Descending" => Ok(Self::Descending),
+      "Equal" => Ok(Self::Equal),
       _ => Err(crate::data::InvalidKey)
     }
   }
