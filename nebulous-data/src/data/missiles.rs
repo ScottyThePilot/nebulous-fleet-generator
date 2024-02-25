@@ -161,6 +161,33 @@ pub enum SeekerMode {
   Validation
 }
 
+impl SeekerMode {
+  pub const fn to_str(self) -> &'static str {
+    match self {
+      Self::Targeting => "Targeting",
+      Self::Validation => "Validation"
+    }
+  }
+}
+
+impl FromStr for SeekerMode {
+  type Err = crate::data::InvalidKey;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "Targeting" => Ok(Self::Targeting),
+      "Validation" => Ok(Self::Validation),
+      _ => Err(crate::data::InvalidKey)
+    }
+  }
+}
+
+impl fmt::Display for SeekerMode {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.to_str())
+  }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SeekerLayout {
   pub primary: SeekerKey,
@@ -459,95 +486,6 @@ impl fmt::Display for SeekerStrategy {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Countermeasure {
-  RadarJamming,
-  CommsJamming,
-  LaserDazzler,
-  ChaffDecoy,
-  FlareDecoy,
-  ActiveDecoy,
-  CutEngines,
-  CutRadar
-}
-
-impl Countermeasure {
-  pub const fn to_str(self) -> &'static str {
-    match self {
-      Self::RadarJamming => "Radar Jamming",
-      Self::CommsJamming => "Comms Jamming",
-      Self::LaserDazzler => "Laser Dazzler",
-      Self::ChaffDecoy => "Chaff Decoy",
-      Self::FlareDecoy => "Flare Decoy",
-      Self::ActiveDecoy => "Active Decoy",
-      Self::CutEngines => "Disable Engines",
-      Self::CutRadar => "Disable Radar"
-    }
-  }
-}
-
-impl fmt::Display for Countermeasure {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    f.write_str(self.to_str())
-  }
-}
-
-/// Defines the likelyhood of any given countermeasure's employment within the battlespace
-/// for use by the generator in weighing a seeker strategy's resistance to said countermeasures.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CountermeasureProbabilities {
-  /// RADAR jamming, such as from the 'Blanket' jammer.
-  pub radar_jamming: f32,
-  /// COMMS jamming, such as from the 'Hangup' jammer.
-  pub comms_jamming: f32,
-  /// Electro-Optical seeker jamming, such as from the 'Blackjack' laser dazzler.
-  pub laser_dazzler: f32,
-  /// Chaff decoys.
-  pub chaff_decoy: f32,
-  /// Flare decoys.
-  pub flare_decoy: f32,
-  /// Active decoys, only available to ANS.
-  pub active_decoy: f32,
-  /// Ship has disabled/cut its thrusters.
-  /// This includes ships that are immobilized from damage.
-  pub cut_engines: f32,
-  /// Ship has disabled all radar emissions.
-  pub cut_radar: f32
-}
-
-impl Index<Countermeasure> for CountermeasureProbabilities {
-  type Output = f32;
-
-  fn index(&self, cm: Countermeasure) -> &Self::Output {
-    match cm {
-      Countermeasure::RadarJamming => &self.radar_jamming,
-      Countermeasure::CommsJamming => &self.comms_jamming,
-      Countermeasure::LaserDazzler => &self.laser_dazzler,
-      Countermeasure::ChaffDecoy => &self.chaff_decoy,
-      Countermeasure::FlareDecoy => &self.flare_decoy,
-      Countermeasure::ActiveDecoy => &self.active_decoy,
-      Countermeasure::CutEngines => &self.cut_engines,
-      Countermeasure::CutRadar => &self.cut_radar
-    }
-  }
-}
-
-impl Default for CountermeasureProbabilities {
-  fn default() -> Self {
-    CountermeasureProbabilities {
-      radar_jamming: 0.90,
-      comms_jamming: 0.80,
-      laser_dazzler: 0.05,
-      chaff_decoy: 0.95,
-      flare_decoy: 0.15,
-      active_decoy: 0.50,
-      cut_engines: 0.20,
-      cut_radar: 0.05
-    }
-  }
-}
-
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AuxiliaryKey {
   ColdGasBottle,
   DecoyLauncher,
@@ -591,15 +529,13 @@ pub struct MissileBody {
   pub faction: Option<Faction>
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MissileSlot {
-  pub allow_seekers: bool,
-  pub allow_auxiliary: bool,
-  pub allow_avionics: bool,
-  pub allow_payloads: bool
+impl fmt::Display for Maneuvers {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.to_str())
+  }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EngineSettings {
   pub top_speed: f32,
   pub burn_duration: f32,
@@ -607,6 +543,14 @@ pub struct EngineSettings {
 }
 
 impl EngineSettings {
+  pub const fn from_array(a: [f32; 3]) -> Self {
+    EngineSettings { top_speed: a[0], burn_duration: a[1], maneuverability: a[2] }
+  }
+
+  pub const fn to_array(self) -> [f32; 3] {
+    [self.top_speed, self.burn_duration, self.maneuverability]
+  }
+
   pub fn normalize(self) -> Self {
     let a = self.top_speed.max(0.0);
     let b = self.burn_duration.max(0.0);
@@ -730,4 +674,122 @@ pub mod list {
     save_key: "Stock/CM-S-4 Body",
     faction: Some(Faction::Protectorate)
   };
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum Maneuvers {
+  #[default] None, Weave, Corkscrew
+}
+
+impl Maneuvers {
+  pub const fn to_str(self) -> &'static str {
+    match self {
+      Self::None => "None",
+      Self::Weave => "Weave",
+      Self::Corkscrew => "Corkscrew"
+    }
+  }
+}
+
+impl FromStr for Maneuvers {
+  type Err = crate::data::InvalidKey;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "None" => Ok(Self::None),
+      "Weave" => Ok(Self::Weave),
+      "Corkscrew" => Ok(Self::Corkscrew),
+      _ => Err(crate::data::InvalidKey)
+    }
+  }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Countermeasure {
+  RadarJamming,
+  CommsJamming,
+  LaserDazzler,
+  ChaffDecoy,
+  FlareDecoy,
+  ActiveDecoy,
+  CutEngines,
+  CutRadar
+}
+
+impl Countermeasure {
+  pub const fn to_str(self) -> &'static str {
+    match self {
+      Self::RadarJamming => "Radar Jamming",
+      Self::CommsJamming => "Comms Jamming",
+      Self::LaserDazzler => "Laser Dazzler",
+      Self::ChaffDecoy => "Chaff Decoy",
+      Self::FlareDecoy => "Flare Decoy",
+      Self::ActiveDecoy => "Active Decoy",
+      Self::CutEngines => "Disable Engines",
+      Self::CutRadar => "Disable Radar"
+    }
+  }
+}
+
+impl fmt::Display for Countermeasure {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str(self.to_str())
+  }
+}
+
+/// Defines the likelyhood of any given countermeasure's employment within the battlespace
+/// for use by the generator in weighing a seeker strategy's resistance to said countermeasures.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CountermeasureProbabilities {
+  /// RADAR jamming, such as from the 'Blanket' jammer.
+  pub radar_jamming: f32,
+  /// COMMS jamming, such as from the 'Hangup' jammer.
+  pub comms_jamming: f32,
+  /// Electro-Optical seeker jamming, such as from the 'Blackjack' laser dazzler.
+  pub laser_dazzler: f32,
+  /// Chaff decoys.
+  pub chaff_decoy: f32,
+  /// Flare decoys.
+  pub flare_decoy: f32,
+  /// Active decoys, only available to ANS.
+  pub active_decoy: f32,
+  /// Ship has disabled/cut its thrusters.
+  /// This includes ships that are immobilized from damage.
+  pub cut_engines: f32,
+  /// Ship has disabled all radar emissions.
+  pub cut_radar: f32
+}
+
+impl Index<Countermeasure> for CountermeasureProbabilities {
+  type Output = f32;
+
+  fn index(&self, cm: Countermeasure) -> &Self::Output {
+    match cm {
+      Countermeasure::RadarJamming => &self.radar_jamming,
+      Countermeasure::CommsJamming => &self.comms_jamming,
+      Countermeasure::LaserDazzler => &self.laser_dazzler,
+      Countermeasure::ChaffDecoy => &self.chaff_decoy,
+      Countermeasure::FlareDecoy => &self.flare_decoy,
+      Countermeasure::ActiveDecoy => &self.active_decoy,
+      Countermeasure::CutEngines => &self.cut_engines,
+      Countermeasure::CutRadar => &self.cut_radar
+    }
+  }
+}
+
+impl Default for CountermeasureProbabilities {
+  fn default() -> Self {
+    CountermeasureProbabilities {
+      radar_jamming: 0.90,
+      comms_jamming: 0.80,
+      laser_dazzler: 0.05,
+      chaff_decoy: 0.95,
+      flare_decoy: 0.15,
+      active_decoy: 0.50,
+      cut_engines: 0.20,
+      cut_radar: 0.05
+    }
+  }
 }

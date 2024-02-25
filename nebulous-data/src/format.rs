@@ -1,6 +1,6 @@
 use crate::data::Faction;
 use crate::data::hulls::HullKey;
-use crate::data::missiles::MissileBodyKey;
+use crate::data::missiles::{MissileBodyKey, SeekerMode, Maneuvers, EngineSettings};
 use crate::data::components::ComponentKey;
 
 use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes, Attributes};
@@ -507,7 +507,7 @@ pub struct MissileTemplate {
   pub template_key: Uuid,
   pub base_color: Color,
   pub stripe_color: Color,
-  pub sockets: Vec<()>
+  pub sockets: Vec<MissileSocket>
 }
 
 impl DeserializeElement for MissileTemplate {
@@ -532,27 +532,71 @@ impl SerializeElement for MissileTemplate {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MissileSocket {
   pub size: NonZeroUsize,
-  pub installed_component: MissileComponent
+  pub installed_component: Option<MissileComponent>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MissileComponent {
-  pub component_key: MissileComponentKey,
-  pub settings: MissileComponentSettings
+  /// Only `None` when this component is an engine.
+  pub component_key: Option<MissileComponentKey>,
+  pub settings: Option<MissileComponentSettings>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MissileComponentSettings {
-  ActiveSeekerSettings {},
-  CommandSeekerSettings {},
-  CruiseGuidanceSettings {},
-  DirectGuidanceSettings {},
-  MissileEngineSettings {},
-  PassiveARHSeekerSettings {},
-  PassiveSeekerSettings {},
+  ActiveSeekerSettings {
+    // Mode, RejectUnvalidated, DetectPDTargets
+    mode: SeekerMode,
+    reject_unvalidated: bool,
+    detect_pd_targets: bool
+  },
+  CommandSeekerSettings {
+    // Mode
+    mode: SeekerMode
+  },
+  DirectGuidanceSettings {
+    // HotLaunch, SelfDestructOnLost, Maneuvers, DefensiveDoctrine, ApproachAngleControl
+    hot_launch: bool,
+    self_destruct_on_lost: bool,
+    maneuvers: Maneuvers,
+    defensive_doctrine: Option<MissileDefensiveDoctrine>,
+    approach_angle_control: bool
+  },
+  CruiseGuidanceSettings {
+    // HotLaunch, SelfDestructOnLost, Maneuvers, DefensiveDoctrine
+    hot_launch: bool,
+    self_destruct_on_lost: bool,
+    maneuvers: Maneuvers,
+    defensive_doctrine: Option<MissileDefensiveDoctrine>
+  },
+  MissileEngineSettings {
+    // BalanceValues
+    balance_values: EngineSettings
+  },
+  PassiveARHSeekerSettings {
+    // Mode, RejectUnvalidated, TargetType
+    mode: SeekerMode,
+    reject_unvalidated: bool,
+    home_on_jam: bool
+  },
+  PassiveSeekerSettings {
+    // Mode, RejectUnvalidated, DetectPDTargets
+    mode: SeekerMode,
+    reject_unvalidated: bool,
+    detect_pd_targets: bool
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MissileDefensiveDoctrine {
+  pub target_size_mask: [bool; 3],
+  pub target_type: (),
+  pub target_size_ordering: Ordering,
+  pub salvo_size: usize,
+  pub farthest_first: bool
 }
 
 #[repr(u8)]
@@ -652,6 +696,49 @@ impl fmt::Display for MissileComponentKey {
     f.write_str(self.save_key())
   }
 }
+
+xml::impl_deserialize_nodes_parse!(MissileComponentKey);
+xml::impl_serialize_nodes_display!(MissileComponentKey);
+
+
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Ordering {
+  Ascending,
+  Descending
+}
+
+impl Ordering {
+  pub const fn to_str(self) -> &'static str {
+    match self {
+      Self::Ascending => "Ascending",
+      Self::Descending => "Descending"
+    }
+  }
+}
+
+impl FromStr for Ordering {
+  type Err = crate::data::InvalidKey;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "Ascending" => Ok(Self::Ascending),
+      "Descending" => Ok(Self::Descending),
+      _ => Err(crate::data::InvalidKey)
+    }
+  }
+}
+
+impl fmt::Display for Ordering {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str(self.to_str())
+  }
+}
+
+xml::impl_deserialize_nodes_parse!(Ordering);
+xml::impl_serialize_nodes_display!(Ordering);
+
 
 
 #[derive(Debug, Clone, Copy, PartialEq)]

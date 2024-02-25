@@ -12,7 +12,9 @@ xml::impl_deserialize_nodes_parse! {
   Faction,
   self::components::ComponentKey,
   self::hulls::HullKey,
+  self::missiles::Maneuvers,
   self::missiles::MissileBodyKey,
+  self::missiles::SeekerMode,
   self::munitions::MunitionKey
 }
 
@@ -20,7 +22,9 @@ xml::impl_serialize_nodes_display! {
   Faction,
   self::components::ComponentKey,
   self::hulls::HullKey,
+  self::missiles::Maneuvers,
   self::missiles::MissileBodyKey,
+  self::missiles::SeekerMode,
   self::munitions::MunitionKey
 }
 
