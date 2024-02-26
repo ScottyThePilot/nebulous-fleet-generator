@@ -135,7 +135,7 @@ pub struct Ship {
   pub hull_config: Option<Box<HullConfig>>,
   pub socket_map: Vec<HullSocket>,
   pub weapon_groups: Vec<WeaponGroup>,
-  // TODO: initial_formation
+  pub initial_formation: Option<InitialFormation>,
   pub missile_types: Vec<MissileTemplate>
 }
 
@@ -144,8 +144,8 @@ impl DeserializeElement for Ship {
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
     element.expect_named("Ship")?;
-    let [key, name, cost, callsign, number, hull_type, hull_config, socket_map, weapon_groups, missile_types] = element.children
-      .find_elements(["Key", "Name", "Cost", "Callsign", "Number", "HullType", "HullConfig", "SocketMap", "WeaponGroups", "TemplateMissileTypes"])?;
+    let [key, name, cost, callsign, number, hull_type, hull_config, socket_map, weapon_groups, initial_formation, missile_types] = element.children
+      .find_elements(["Key", "Name", "Cost", "Callsign", "Number", "HullType", "HullConfig", "SocketMap", "WeaponGroups", "InitialFormation", "TemplateMissileTypes"])?;
 
     let key = key.ok_or(xml::Error::missing_element("Key"))?.children.deserialize::<Uuid>()?;
     let name = name.ok_or(xml::Error::missing_element("Name"))?.children.deserialize::<String>()?;
@@ -156,10 +156,10 @@ impl DeserializeElement for Ship {
     let hull_config = hull_config.map(|hull_config| hull_config.deserialize::<Box<HullConfig>>()).transpose()?;
     let socket_map = socket_map.ok_or(xml::Error::missing_element("SocketMap"))?.children.deserialize::<Vec<HullSocket>>()?;
     let weapon_groups = weapon_groups.ok_or(xml::Error::missing_element("WeaponGroups"))?.children.deserialize::<Vec<WeaponGroup>>()?;
+    let initial_formation = initial_formation.map(InitialFormation::deserialize_element).transpose()?;
     let missile_types = missile_types.ok_or(xml::Error::missing_element("TemplateMissileTypes"))?.children.deserialize::<Vec<MissileTemplate>>()?;
 
-
-    Ok(Ship { key, name, cost, callsign, number, hull_type, hull_config, socket_map, weapon_groups, missile_types })
+    Ok(Ship { key, name, cost, callsign, number, hull_type, hull_config, socket_map, weapon_groups, initial_formation, missile_types })
   }
 }
 
@@ -178,11 +178,12 @@ impl SerializeElement for Ship {
     let hull_config = self.hull_config.map(<Box<HullConfig>>::serialize_element).transpose()?;
     let socket_map = Element::new("SocketMap", self.socket_map.serialize_nodes()?);
     let weapon_groups = Element::new("WeaponGroups", self.weapon_groups.serialize_nodes()?);
+    let initial_formation = self.initial_formation.map(InitialFormation::serialize_element).transpose()?;
     let missile_types = Element::new("TemplateMissileTypes", self.missile_types.serialize_nodes()?);
 
     let nodes = Nodes::from_iter(chain_iter!(
-      [save_id, key, name, cost, callsign, number, symbol_option, hull_type],
-      hull_config, [socket_map, weapon_groups, missile_types]
+      [save_id, key, name, cost, callsign, number, symbol_option, hull_type], hull_config,
+      [socket_map, weapon_groups], initial_formation, std::iter::once(missile_types)
     ));
 
     Ok(Element::new("Ship", nodes))
@@ -380,6 +381,35 @@ impl SerializeElement for WeaponGroup {
     let nodes = Nodes::new_one(Element::new("MemberKeys", member_keys));
     let weapon_group = Element::with_attributes("WepGroup", xml::attributes!("Name" = self.name), nodes);
     Ok(weapon_group)
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct InitialFormation {
+  guide_key: Uuid,
+  relative_position: Vector3<f32>
+}
+
+impl DeserializeElement for InitialFormation {
+  type Error = FormatError;
+
+  fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("InitialFormation")?;
+    let [guide_key, relative_position] = element.children.find_elements(["GuideKey", "RelativePosition"])?;
+    let guide_key = guide_key.ok_or(xml::Error::missing_element("GuideKey"))?.children.deserialize::<Uuid>()?;
+    let relative_position = relative_position.ok_or(xml::Error::missing_element("RelativePosition"))?.children.deserialize::<Vector3<f32>>()?;
+    Ok(InitialFormation { guide_key, relative_position })
+  }
+}
+
+impl SerializeElement for InitialFormation {
+  type Error = Infallible;
+
+  fn serialize_element(self) -> Result<Element, Self::Error> {
+    Ok(Element::new("InitialFormation", Nodes::from_iter([
+      Element::new("GuideKey", self.guide_key.serialize_nodes()?),
+      Element::new("RelativePosition", self.relative_position.serialize_nodes()?)
+    ])))
   }
 }
 
