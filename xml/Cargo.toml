@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# why does rxml enable the async feature by default
-rxml = { version = "0.9.1", default-features = false }
+quick-xml = { version = "0.31.0" }
 thiserror = { version = "1.0" }
 uuid = { version = "1.7.0" }

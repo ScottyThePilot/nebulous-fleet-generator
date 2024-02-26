@@ -2,20 +2,23 @@
 
 pub extern crate uuid;
 
-use rxml::{EventRead, PullDriver};
-use rxml::parser::{RawEvent, RawParser};
-use rxml::strings::{CDataStr, NcName, NameStr};
-use rxml::writer::{Encoder, SimpleNamespaces, Item};
-pub use rxml::parser::XmlVersion;
+use quick_xml::reader::Reader;
+use quick_xml::writer::Writer;
+use quick_xml::encoding::Decoder;
+use quick_xml::escape::unescape;
+use quick_xml::name::QName;
+use quick_xml::events::{Event, BytesStart, BytesEnd, BytesText, BytesDecl};
+use quick_xml::events::attributes::{Attribute, Attributes as AttributesIter};
 use thiserror::Error;
 
 use std::convert::Infallible;
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 use std::iter::Filter;
 use std::ops::{Deref, DerefMut};
 use std::slice::{Iter as SliceIter, IterMut as SliceIterMut};
 use std::str::FromStr;
 use std::vec::IntoIter as VecIntoIter;
+use std::borrow::Cow;
 
 
 
@@ -678,27 +681,67 @@ where
   assert_eq!(value, &value2, "failed to round-trip: values not equal");
 }
 
-pub fn write_nodes(nodes: &Nodes, version: Option<XmlVersion>) -> Result<Vec<u8>, Error> {
-  let mut buffer = Vec::new();
-  let mut encoder = Encoder::new();
-  if let Some(version) = version { encoder.encode(Item::XmlDeclaration(version), &mut buffer)? };
-  push_nodes_recursive(&mut buffer, &mut encoder, nodes)?;
-  Ok(buffer)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Version {
+  pub version: &'static str,
+  pub encoding: Option<&'static str>,
+  pub standalone: Option<&'static str>
 }
 
-fn push_nodes_recursive(
-  buffer: &mut Vec<u8>,
-  encoder: &mut Encoder<SimpleNamespaces>,
-  nodes: &Nodes
-) -> Result<(), Error> {
+impl Version {
+  pub const VERSION_1_0: Self = Version {
+    version: "1.0",
+    encoding: None,
+    standalone: None
+  };
+}
+
+impl Default for Version {
+  fn default() -> Self {
+    Self::VERSION_1_0
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Indent {
+  pub indent_char: u8,
+  pub indent_size: usize
+}
+
+impl Default for Indent {
+  fn default() -> Self {
+    // And so the indentation wars raged on...
+    Indent {
+      indent_char: b' ',
+      indent_size: 2
+    }
+  }
+}
+
+pub fn write_nodes<W: Write>(writer: W, nodes: &Nodes, indent: Option<Indent>, version: Option<Version>) -> Result<(), Error> {
+  let mut writer = if let Some(i) = indent {
+    Writer::new_with_indent(writer, i.indent_char, i.indent_size)
+  } else {
+    Writer::new(writer)
+  };
+
+  if let Some(Version { version, encoding, standalone }) = version {
+    writer.write_event(Event::Decl(BytesDecl::new(version, encoding, standalone)))?;
+  };
+
+  push_nodes_recursive(&mut writer, nodes)?;
+
+  Ok(())
+}
+
+pub fn push_nodes_recursive<W: Write>(writer: &mut Writer<W>, nodes: &Nodes) -> Result<(), quick_xml::Error> {
   for node in nodes.iter_raw() {
     match node {
       Node::Element(element) => {
-        push_element_recursive(buffer, encoder, element)?;
+        push_element_recursive(writer, element)?;
       },
       Node::Text(text) => {
-        let text = CDataStr::from_str(text)?;
-        encoder.encode(Item::Text(text), buffer)?;
+        writer.write_event(Event::Text(BytesText::new(text)))?;
       }
     };
   };
@@ -706,83 +749,83 @@ fn push_nodes_recursive(
   Ok(())
 }
 
-fn push_element_recursive(
-  buffer: &mut Vec<u8>,
-  encoder: &mut Encoder<SimpleNamespaces>,
-  element: &Element
-) -> Result<(), Error> {
-  let (namespace, local) = NameStr::from_str(&element.name)?.split_name()?;
-  let namespace = namespace.map(|ns| encoder.inner().lookup_prefix(Some(ns))).transpose()?;
-  encoder.encode(Item::ElementHeadStart(namespace, local), buffer)?;
-  for (name, value) in element.attributes.iter() {
-    let (namespace, local) = NameStr::from_str(&name)?.split_name()?;
-    let namespace = namespace.map(|ns| encoder.inner().lookup_prefix(Some(ns))).transpose()?;
-    let value = CDataStr::from_str(value)?;
-    encoder.encode(Item::Attribute(namespace, local, value), buffer)?;
+pub fn push_element_recursive<W: Write>(writer: &mut Writer<W>, element: &Element) -> Result<(), quick_xml::Error> {
+  let attributes = element.attributes.iter().map(|(k, v)| Attribute::from((&**k, &**v)));
+  let event_start = BytesStart::new(&*element.name).with_attributes(attributes);
+  let event_end = BytesEnd::new(&*element.name);
+  if element.children.is_empty() {
+    writer.write_event(Event::Empty(event_start))?;
+  } else {
+    writer.write_event(Event::Start(event_start))?;
+    push_nodes_recursive(writer, &element.children)?;
+    writer.write_event(Event::End(event_end))?;
   };
-  encoder.encode(Item::ElementHeadEnd, buffer)?;
-  push_nodes_recursive(buffer, encoder, &element.children)?;
-  encoder.encode(Item::ElementFoot, buffer)?;
+
   Ok(())
 }
 
 pub fn read_nodes<R: BufRead>(reader: R) -> Result<Nodes, Error> {
-  pull_nodes_recursive(&mut PullDriver::wrap(reader, rxml::Lexer::new(), RawParser::new()))
+  pull_nodes_recursive(&mut Reader::from_reader(reader), &mut Vec::new()).map_err(From::from)
 }
 
-fn pull_nodes_recursive<R: BufRead>(reader: &mut PullDriver<R, RawParser>) -> Result<Nodes, Error> {
+fn pull_nodes_recursive<R: BufRead>(reader: &mut Reader<R>, buf: &mut Vec<u8>) -> Result<Nodes, quick_xml::Error> {
   let mut nodes = Vec::new();
-  let mut element = None;
-  while let Some(resolved_event) = reader.read()? {
-    match resolved_event {
-      RawEvent::XmlDeclaration(_, _) => (),
-      RawEvent::ElementHeadOpen(_, name) => {
-        let name = join_name(name);
-        let prev = element.replace((name, Vec::new()));
-        debug_assert!(prev.is_none());
+  loop {
+    match reader.read_event_into(buf)? {
+      Event::Start(event) => {
+        let name = resolve_name(event.name(), reader.decoder())?;
+        let attributes = resolve_attributes(event.attributes(), reader.decoder())?;
+        let children = pull_nodes_recursive(reader, buf)?;
+        nodes.push(Node::Element(Element::with_attributes(name, attributes, children)));
       },
-      RawEvent::ElementHeadClose(_) => {
-        let (name, attributes) = element.take().unwrap();
-        let attributes = Attributes::from(attributes);
-        let children = pull_nodes_recursive(reader)?;
-        nodes.push(Node::Element(Element { name, attributes, children }));
+      Event::End(..) => break,
+      Event::Empty(event) => {
+        let name = resolve_name(event.name(), reader.decoder())?;
+        let attributes = resolve_attributes(event.attributes(), reader.decoder())?;
+        nodes.push(Node::Element(Element::with_attributes(name, attributes, Nodes::default())));
       },
-      RawEvent::Attribute(_, name, value) => {
-        let name = join_name(name);
-        let value = String::from(value).into_boxed_str();
-        element.as_mut().unwrap().1.push((name, value));
+      Event::Text(mut event) => {
+        event.inplace_trim_start();
+        event.inplace_trim_end();
+        let text = event.unescape()?.into_owned();
+        nodes.push(Node::Text(text));
       },
-      RawEvent::ElementFoot(_) => break,
-      RawEvent::Text(_, text) => {
-        let content = String::from(text);
-        let content_trimmed = content.trim();
-        if !content_trimmed.is_empty() {
-          let content = if content.len() == content_trimmed.len() { content } else { content_trimmed.to_owned() };
-          nodes.push(Node::Text(content));
-        };
-      }
+      Event::CData(event) => {
+        let content = reader.decoder().decode(event.into_inner().as_ref())?.into_owned();
+        nodes.push(Node::Text(content));
+      },
+      // Ignored
+      Event::Comment(..) => (),
+      // Deserializing XML declarations, Processing Instructions, and DTDs are unsupported
+      Event::Decl(..) | Event::PI(..) | Event::DocType(..) => (),
+      Event::Eof => break
     };
   };
 
   Ok(Nodes::from(nodes))
 }
 
-fn join_name(name: (Option<NcName>, NcName)) -> Box<str> {
-  let (namespace, local) = name;
-  String::into_boxed_str(match namespace {
-    Some(ns) => format!("{}:{}", ns.as_str(), local.as_str()),
-    None => String::from(local)
-  })
+fn resolve_name(name: QName, decoder: Decoder) -> Result<Box<str>, quick_xml::Error> {
+  decoder.decode(name.into_inner()).map(|name| name.into_owned().into_boxed_str())
+}
+
+fn resolve_attributes(attributes: AttributesIter, decoder: Decoder) -> Result<Attributes, quick_xml::Error> {
+  attributes.map(|result| result.map_err(quick_xml::Error::from))
+    .map(|result| result.and_then(|attr| resolve_attribute(attr, decoder)))
+    .collect::<Result<Attributes, quick_xml::Error>>()
+}
+
+fn resolve_attribute(attribute: Attribute, decoder: Decoder) -> Result<(Box<str>, Box<str>), quick_xml::Error> {
+  let key = resolve_name(attribute.key, decoder)?;
+  let value_decoded = decoder.decode(attribute.value.as_ref())?;
+  let value = unescape(value_decoded.as_ref())?;
+  Ok((key, value.into_owned().into_boxed_str()))
 }
 
 #[derive(Debug, Error)]
 pub enum Error {
   #[error(transparent)]
-  XmlParserError(#[from] rxml::error::Error),
-  #[error(transparent)]
-  XmlEncoderError(#[from] rxml::writer::EncodeError),
-  #[error("undeclared namespace")]
-  XmlEncoderPrefixError(rxml::writer::PrefixError),
+  InnerError(#[from] quick_xml::Error),
   #[error("unexpected element {:?}, expected text", .0.name)]
   UnexpectedElementExpectedText(Element),
   #[error("unexpected element {:?}, expected element {:?}", .0.name, .1)]
@@ -837,15 +880,9 @@ impl Error {
   }
 }
 
-impl From<rxml::error::XmlError> for Error {
-  fn from(value: rxml::error::XmlError) -> Self {
-    Error::XmlParserError(rxml::error::Error::Xml(value))
-  }
-}
-
-impl From<rxml::writer::PrefixError> for Error {
-  fn from(value: rxml::writer::PrefixError) -> Self {
-    Error::XmlEncoderPrefixError(value)
+impl From<quick_xml::events::attributes::AttrError> for Error {
+  fn from(error: quick_xml::events::attributes::AttrError) -> Self {
+    Error::InnerError(error.into())
   }
 }
 
