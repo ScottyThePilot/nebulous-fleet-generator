@@ -11,9 +11,12 @@ pub use xml::{read_nodes, write_nodes};
 use std::convert::Infallible;
 use std::fmt;
 use std::num::NonZeroUsize;
+use std::ops::Index;
 use std::str::FromStr;
 
 
+
+pub const CURRENT_FLEET_VERISON: usize = 3;
 
 macro_rules! chain_iter {
   ($expr0:expr $(,)?) => ($expr0.into_iter());
@@ -107,14 +110,16 @@ impl SerializeElement for Fleet {
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
     let name = Element::new("Name", self.name.serialize_nodes()?);
+    let version = Element::new("Version", Nodes::new_text(CURRENT_FLEET_VERISON.to_string()));
     let total_points = Element::new("TotalPoints", self.total_points.serialize_nodes()?);
     let faction_key = Element::new("FactionKey", self.faction_key.serialize_nodes()?);
     let description = self.description.map(String::serialize_nodes).transpose()?
       .map(|description| Element::new("Description", description));
+    let sort_override_order = Element::with_attributes("SortOverrideOrder", xml::attributes!("xsi:nil" = "true"), Nodes::new());
     let ships = Element::new("Ships", self.ships.serialize_nodes()?);
     let missile_types = Element::new("MissileTypes", self.missile_types.serialize_nodes()?);
 
-    let nodes = Nodes::from_iter(chain_iter!([name, total_points, faction_key], description, [ships, missile_types]));
+    let nodes = Nodes::from_iter(chain_iter!([name, version, total_points, faction_key], description, [sort_override_order, ships, missile_types]));
     Ok(Element::new("Fleet", nodes))
   }
 }
@@ -130,6 +135,7 @@ pub struct Ship {
   pub hull_config: Option<Box<HullConfig>>,
   pub socket_map: Vec<HullSocket>,
   pub weapon_groups: Vec<WeaponGroup>,
+  // TODO: initial_formation
   pub missile_types: Vec<MissileTemplate>
 }
 
@@ -518,9 +524,39 @@ impl DeserializeElement for MissileTemplate {
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
     element.expect_named("MissileTemplate")?;
 
-    // TODO
+    let [
+      associated_template_name, designation, nickname, description, long_description,
+      cost, body_key, template_key, base_color, stripe_color, sockets
+    ] = element.children.find_elements([
+      "AssociatedTemplateName", "Designation", "Nickname", "Description", "LongDescription",
+      "Cost", "BodyKey", "TemplateKey", "BaseColor", "StripeColor", "Sockets"
+    ])?;
 
-    Ok(todo!())
+    let associated_template_name = associated_template_name.map(|element| element.children.deserialize::<String>()).transpose()?;
+    let designation = designation.ok_or(xml::Error::missing_element("Designation"))?.children.deserialize::<String>()?;
+    let nickname = nickname.ok_or(xml::Error::missing_element("Nickname"))?.children.deserialize::<String>()?;
+    let description = description.ok_or(xml::Error::missing_element("Description"))?.children.deserialize::<String>()?;
+    let long_description = long_description.ok_or(xml::Error::missing_element("LongDescription"))?.children.deserialize::<String>()?;
+    let cost = cost.ok_or(xml::Error::missing_element("Cost"))?.children.deserialize::<usize>()?;
+    let body_key = body_key.ok_or(xml::Error::missing_element("BodyKey"))?.children.deserialize::<MissileBodyKey>()?;
+    let template_key = template_key.ok_or(xml::Error::missing_element("TemplateKey"))?.children.deserialize::<Uuid>()?;
+    let base_color = base_color.ok_or(xml::Error::missing_element("BaseColor"))?.children.deserialize::<Color>()?;
+    let stripe_color = stripe_color.ok_or(xml::Error::missing_element("StripeColor"))?.children.deserialize::<Color>()?;
+    let sockets = sockets.ok_or(xml::Error::missing_element("Sockets"))?.children.deserialize::<Vec<MissileSocket>>()?;
+
+    Ok(MissileTemplate {
+      associated_template_name,
+      designation,
+      nickname,
+      description,
+      long_description,
+      cost,
+      body_key,
+      template_key,
+      base_color,
+      stripe_color,
+      sockets
+    })
   }
 }
 
@@ -528,9 +564,23 @@ impl SerializeElement for MissileTemplate {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
-    // TODO
+    let name = self.associated_template_name
+      .map(String::serialize_nodes).transpose()?
+      .map(|nodes| Element::new("AssociatedTemplateName", nodes));
+    let nodes = [
+      Element::new("Designation", self.designation.serialize_nodes()?),
+      Element::new("Nickname", self.nickname.serialize_nodes()?),
+      Element::new("Description", self.description.serialize_nodes()?),
+      Element::new("LongDescription", self.long_description.serialize_nodes()?),
+      Element::new("Cost", self.cost.serialize_nodes()?),
+      Element::new("BodyKey", self.body_key.serialize_nodes()?),
+      Element::new("TemplateKey", self.template_key.serialize_nodes()?),
+      Element::new("BaseColor", self.base_color.serialize_nodes()?),
+      Element::new("StripeColor", self.stripe_color.serialize_nodes()?),
+      Element::new("Sockets", self.sockets.serialize_nodes()?)
+    ];
 
-    Ok(Element::new("MissileTemplate", Nodes::default()))
+    Ok(Element::new("MissileTemplate", Nodes::from_iter(chain_iter!(name, nodes))))
   }
 }
 
@@ -540,18 +590,35 @@ pub struct MissileSocket {
   pub installed_component: Option<MissileComponent>
 }
 
+impl DeserializeElement for MissileSocket {
+  type Error = FormatError;
+
+  fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("MissileSocket")?;
+    let [size, installed_component] = element.children.find_elements(["Size", "InstalledComponent"])?;
+    let size = size.ok_or(xml::Error::missing_element("Size"))?.children.deserialize::<NonZeroUsize>()?;
+    let installed_component = installed_component.map(MissileComponent::deserialize_element).transpose()?;
+    Ok(MissileSocket { size, installed_component })
+  }
+}
+
+impl SerializeElement for MissileSocket {
+  type Error = Infallible;
+
+  fn serialize_element(self) -> Result<Element, Self::Error> {
+    let size = Element::new("Size", self.size.serialize_nodes()?);
+    let installed_component = self.installed_component.map(MissileComponent::serialize_element).transpose()?;
+
+    let iter = std::iter::once(size).chain(installed_component);
+    Ok(Element::new("MissileSocket", Nodes::from_iter(iter)))
+  }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MissileComponent {
   /// Only `None` when this component is an engine.
   pub component_key: Option<MissileComponentKey>,
   pub settings: Option<MissileComponentSettings>
-}
-
-impl MissileComponent {
-  const CHILD_ELEMENTS: [&'static str; 12] = [
-    "ComponentKey", "Mode", "RejectUnvalidated", "TargetType", "DetectPDTargets", "Role", "HotLaunch",
-    "SelfDestructOnLost", "Maneuvers", "DefensiveDoctrine", "ApproachAngleControl", "BalanceValues"
-  ];
 }
 
 impl DeserializeElement for MissileComponent {
@@ -564,7 +631,10 @@ impl DeserializeElement for MissileComponent {
     let [
       component_key, mode, reject_unvalidated, target_type, detect_pd_targets, role, hot_launch,
       self_destruct_on_lost, maneuvers, defensive_doctrine, approach_angle_control, balance_values
-    ] = element.children.find_elements(Self::CHILD_ELEMENTS)?;
+    ] = element.children.find_elements([
+      "ComponentKey", "Mode", "RejectUnvalidated", "TargetType", "DetectPDTargets", "Role", "HotLaunch",
+      "SelfDestructOnLost", "Maneuvers", "DefensiveDoctrine", "ApproachAngleControl", "BalanceValues"
+    ])?;
 
     let mode = mode.ok_or(xml::Error::missing_element("Mode"))
       .and_then(|element| element.children.deserialize::<SeekerMode>());
@@ -588,7 +658,8 @@ impl DeserializeElement for MissileComponent {
       .and_then(|element| element.children.deserialize::<bool>());
     let balance_values = balance_values.ok_or(xml::Error::missing_element("BalanceValues"));
 
-    let component_key = component_key.map(|element| element.children.deserialize::<MissileComponentKey>()).transpose()?;
+    let component_key = component_key.filter(|element| !element.children.is_empty())
+      .map(|element| element.children.deserialize::<MissileComponentKey>()).transpose()?;
     let settings = xsi_type.as_deref().map(|xsi_type| match xsi_type {
       "ActiveSeekerSettings" => Ok(MissileComponentSettings::ActiveSeekerSettings {
         mode: mode?,
@@ -644,8 +715,15 @@ impl SerializeElement for MissileComponent {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
+    let component_key = self.component_key
+      .map(MissileComponentKey::serialize_nodes).transpose()?
+      .map(|nodes| Element::new("ComponentKey", nodes));
+    let (attributes, nodes) = match self.settings.map(serialize_settings).transpose()? {
+      Some((xsi_type, elements)) => (xml::attributes!("xsi:type" = xsi_type), Nodes::from_iter(chain_iter!(component_key, elements))),
+      None => (xml::Attributes::new(), Nodes::from_iter(component_key))
+    };
 
-    Ok(todo!())
+    Ok(Element::with_attributes("InstalledComponent", attributes, nodes))
   }
 }
 
@@ -694,6 +772,66 @@ pub enum MissileComponentSettings {
   }
 }
 
+fn serialize_settings(settings: MissileComponentSettings) -> Result<(&'static str, Vec<Element>), Infallible> {
+  Ok(match settings {
+    MissileComponentSettings::ActiveSeekerSettings { mode, reject_unvalidated, detect_pd_targets } => {
+      let mode = Element::new("Mode", mode.serialize_nodes()?);
+      let reject_unvalidated = Element::new("RejectUnvalidated", reject_unvalidated.serialize_nodes()?);
+      let detect_pd_targets = Element::new("DetectPDTargets", detect_pd_targets.serialize_nodes()?);
+      ("ActiveSeekerSettings", vec![mode, reject_unvalidated, detect_pd_targets])
+    },
+    MissileComponentSettings::CommandSeekerSettings { mode } => {
+      let mode = Element::new("Mode", mode.serialize_nodes()?);
+      ("CommandSeekerSettings", vec![mode])
+    },
+    MissileComponentSettings::DirectGuidanceSettings {
+      hot_launch, self_destruct_on_lost, maneuvers, defensive_doctrine, approach_angle_control
+    } => {
+      let role = if defensive_doctrine.is_some() { MissileRole::Defensive } else { MissileRole::Offensive };
+      let role = Element::new("Role", role.serialize_nodes()?);
+      let hot_launch = Element::new("HotLaunch", hot_launch.serialize_nodes()?);
+      let self_destruct_on_lost = Element::new("SelfDestructOnLost", self_destruct_on_lost.serialize_nodes()?);
+      let maneuvers = Element::new("Maneuvers", maneuvers.serialize_nodes()?);
+      let defensive_doctrine = defensive_doctrine.unwrap_or_default().serialize_element()?;
+      let approach_angle_control = Element::new("ApproachAngleControl", approach_angle_control.serialize_nodes()?);
+      ("DirectGuidanceSettings", vec![role, hot_launch, self_destruct_on_lost, maneuvers, defensive_doctrine, approach_angle_control])
+    },
+    MissileComponentSettings::CruiseGuidanceSettings {
+      hot_launch, self_destruct_on_lost, maneuvers, defensive_doctrine
+    } => {
+      let role = if defensive_doctrine.is_some() { MissileRole::Defensive } else { MissileRole::Offensive };
+      let role = Element::new("Role", role.serialize_nodes()?);
+      let hot_launch = Element::new("HotLaunch", hot_launch.serialize_nodes()?);
+      let self_destruct_on_lost = Element::new("SelfDestructOnLost", self_destruct_on_lost.serialize_nodes()?);
+      let maneuvers = Element::new("Maneuvers", maneuvers.serialize_nodes()?);
+      let defensive_doctrine = defensive_doctrine.unwrap_or_default().serialize_element()?;
+      ("CruiseGuidanceSettings", vec![role, hot_launch, self_destruct_on_lost, maneuvers, defensive_doctrine])
+    },
+    MissileComponentSettings::MissileEngineSettings { balance_values } => {
+      let [a, b, c] = balance_values.into_array();
+      let balance_values = Element::new("BalanceValues", Nodes::from_iter([
+        Element::new("A", a.serialize_nodes()?),
+        Element::new("B", b.serialize_nodes()?),
+        Element::new("C", c.serialize_nodes()?),
+      ]));
+      ("MissileEngineSettings", vec![balance_values])
+    },
+    MissileComponentSettings::PassiveARHSeekerSettings { mode, reject_unvalidated, home_on_jam } => {
+      let mode = Element::new("Mode", mode.serialize_nodes()?);
+      let reject_unvalidated = Element::new("RejectUnvalidated", reject_unvalidated.serialize_nodes()?);
+      let target_type = if home_on_jam { AntiRadiationTargetType::JammingOnly } else { AntiRadiationTargetType::All };
+      let target_type = Element::new("TargetType", target_type.serialize_nodes()?);
+      ("PassiveARHSeekerSettings", vec![mode, reject_unvalidated, target_type])
+    },
+    MissileComponentSettings::PassiveSeekerSettings { mode, reject_unvalidated, detect_pd_targets } => {
+      let mode = Element::new("Mode", mode.serialize_nodes()?);
+      let reject_unvalidated = Element::new("RejectUnvalidated", reject_unvalidated.serialize_nodes()?);
+      let detect_pd_targets = Element::new("DetectPDTargets", detect_pd_targets.serialize_nodes()?);
+      ("PassiveSeekerSettings", vec![mode, reject_unvalidated, detect_pd_targets])
+    }
+  })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DefensiveDoctrine {
   pub target_size_mask: MissileSizeMask,
@@ -721,8 +859,23 @@ impl DeserializeElement for DefensiveDoctrine {
   type Error = FormatError;
 
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
+    element.expect_named("DefensiveDoctrine")?;
+    let [target_size_mask, target_type, target_size_ordering, salvo_size, farthest_first] = element.children
+      .find_elements(["TargetSizeMask", "TargetType", "TargetSizeOrdering", "SalvoSize", "FarthestFirst"])?;
 
-    Ok(todo!())
+    let target_size_mask = target_size_mask.ok_or(xml::Error::missing_element("TargetSizeMask"))?.children.deserialize::<MissileSizeMask>()?;
+    let target_type = target_type.map(|element| element.children.deserialize::<DefensiveTargetType>()).transpose()?.unwrap_or_default();
+    let target_size_ordering = target_size_ordering.ok_or(xml::Error::missing_element("TargetSizeOrdering"))?.children.deserialize::<Ordering>()?;
+    let salvo_size = salvo_size.ok_or(xml::Error::missing_element("SalvoSize"))?.children.deserialize::<usize>()?;
+    let farthest_first = farthest_first.ok_or(xml::Error::missing_element("FarthestFirst"))?.children.deserialize::<bool>()?;
+
+    Ok(DefensiveDoctrine {
+      target_size_mask,
+      target_type,
+      target_size_ordering,
+      salvo_size,
+      farthest_first
+    })
   }
 }
 
@@ -730,8 +883,14 @@ impl SerializeElement for DefensiveDoctrine {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
+    let target_size_mask = Element::new("TargetSizeMask", self.target_size_mask.serialize_nodes()?);
+    let target_type = Element::new("TargetType", self.target_type.serialize_nodes()?);
+    let target_size_ordering = Element::new("TargetSizeOrdering", self.target_size_ordering.serialize_nodes()?);
+    let salvo_size = Element::new("SalvoSize", self.salvo_size.serialize_nodes()?);
+    let farthest_first = Element::new("FarthestFirst", self.farthest_first.serialize_nodes()?);
 
-    Ok(todo!())
+    let iter = [target_size_mask, target_type, target_size_ordering, salvo_size, farthest_first];
+    Ok(Element::new("DefensiveDoctrine", Nodes::from_iter(iter)))
   }
 }
 
@@ -759,7 +918,7 @@ impl FromStr for DefensiveTargetType {
       "All" => Ok(DefensiveTargetType::All),
       "Conventional" => Ok(DefensiveTargetType::Conventional),
       "Hybrid" => Ok(DefensiveTargetType::Hybrid),
-      _ => Err(crate::data::InvalidKey)
+      _ => Err(crate::data::InvalidKey::DefensiveTargetType)
     }
   }
 }
@@ -860,7 +1019,7 @@ impl FromStr for MissileComponentKey {
       "Stock/HE Kinetic Penetrator" => Ok(Self::HEKineticPenetrator),
       "Stock/Blast Fragmentation" => Ok(Self::BlastFragmentation),
       "Stock/Blast Fragmentation EL" => Ok(Self::BlastFragmentationEL),
-      _ => Err(crate::data::InvalidKey)
+      _ => Err(crate::data::InvalidKey::MissileComponent)
     }
   }
 }
@@ -881,6 +1040,22 @@ pub struct MissileSizeMask {
   pub size3: bool
 }
 
+impl MissileSizeMask {
+  pub const fn from_u8(b: u8) -> Self {
+    MissileSizeMask {
+      size1: (b >> 3) & 0b1 == 0b1,
+      size2: (b >> 2) & 0b1 == 0b1,
+      size3: (b >> 1) & 0b1 == 0b1
+    }
+  }
+
+  pub const fn to_u8(self) -> u8 {
+    ((self.size1 as u8) << 3) |
+    ((self.size2 as u8) << 2) |
+    ((self.size3 as u8) << 1)
+  }
+}
+
 impl Default for MissileSizeMask {
   fn default() -> Self {
     MissileSizeMask {
@@ -891,30 +1066,30 @@ impl Default for MissileSizeMask {
   }
 }
 
+impl Index<MissileSize> for MissileSizeMask {
+  type Output = bool;
+
+  fn index(&self, missile_size: MissileSize) -> &Self::Output {
+    match missile_size {
+      MissileSize::Size1 => &self.size1,
+      MissileSize::Size2 => &self.size2,
+      MissileSize::Size3 => &self.size3
+    }
+  }
+}
+
 impl FromStr for MissileSizeMask {
-  type Err = InvalidMissileSizeMask;
+  type Err = <u8 as FromStr>::Err;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    let mut out = [false; 3];
-    for ch in s.chars().filter(|ch| !ch.is_whitespace()) {
-      let n = ch.to_digit(3).ok_or(InvalidMissileSizeMask(ch))?;
-      out[n as usize] = true;
-    };
-
-    Ok(MissileSizeMask {
-      size1: out[0],
-      size2: out[1],
-      size3: out[2]
-    })
+    let b = s.parse::<u8>()?;
+    Ok(MissileSizeMask::from_u8(b))
   }
 }
 
 impl fmt::Display for MissileSizeMask {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    if self.size1 { f.write_str("0")? };
-    if self.size2 { f.write_str("1")? };
-    if self.size3 { f.write_str("2")? };
-    Ok(())
+    fmt::Display::fmt(&self.to_u8(), f)
   }
 }
 
@@ -947,7 +1122,7 @@ impl FromStr for MissileRole {
     match s {
       "Offensive" => Ok(MissileRole::Offensive),
       "Defensive" => Ok(MissileRole::Defensive),
-      _ => Err(crate::data::InvalidKey)
+      _ => Err(crate::data::InvalidKey::MissileRole)
     }
   }
 }
@@ -983,7 +1158,7 @@ impl FromStr for AntiRadiationTargetType {
     match s {
       "All" => Ok(AntiRadiationTargetType::All),
       "JammingOnly" => Ok(AntiRadiationTargetType::JammingOnly),
-      _ => Err(crate::data::InvalidKey)
+      _ => Err(crate::data::InvalidKey::AntiRadiationTargetType)
     }
   }
 }
@@ -1021,7 +1196,7 @@ impl FromStr for Ordering {
       "Ascending" => Ok(Self::Ascending),
       "Descending" => Ok(Self::Descending),
       "Equal" => Ok(Self::Equal),
-      _ => Err(crate::data::InvalidKey)
+      _ => Err(crate::data::InvalidKey::Ordering)
     }
   }
 }

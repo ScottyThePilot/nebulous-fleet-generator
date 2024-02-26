@@ -202,7 +202,7 @@ impl FromStr for MunitionKey {
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     MunitionKey::VALUES.iter().copied()
       .find(|munition_key| munition_key.save_key() == s)
-      .ok_or(super::InvalidKey)
+      .ok_or(super::InvalidKey::Munition)
   }
 }
 

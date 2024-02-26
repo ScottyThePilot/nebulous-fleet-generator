@@ -177,7 +177,7 @@ impl FromStr for SeekerMode {
     match s {
       "Targeting" => Ok(Self::Targeting),
       "Validation" => Ok(Self::Validation),
-      _ => Err(crate::data::InvalidKey)
+      _ => Err(crate::data::InvalidKey::Seeker)
     }
   }
 }
@@ -547,7 +547,7 @@ impl EngineSettings {
     EngineSettings { top_speed: a[0], burn_duration: a[1], maneuverability: a[2] }
   }
 
-  pub const fn to_array(self) -> [f32; 3] {
+  pub const fn into_array(self) -> [f32; 3] {
     [self.top_speed, self.burn_duration, self.maneuverability]
   }
 
@@ -620,7 +620,7 @@ impl FromStr for MissileBodyKey {
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     MissileBodyKey::VALUES.iter().copied()
       .find(|hull_key| hull_key.save_key() == s)
-      .ok_or(super::InvalidKey)
+      .ok_or(super::InvalidKey::MissileBody)
   }
 }
 
@@ -700,7 +700,7 @@ impl FromStr for Maneuvers {
       "None" => Ok(Self::None),
       "Weave" => Ok(Self::Weave),
       "Corkscrew" => Ok(Self::Corkscrew),
-      _ => Err(crate::data::InvalidKey)
+      _ => Err(crate::data::InvalidKey::Maneuvers)
     }
   }
 }

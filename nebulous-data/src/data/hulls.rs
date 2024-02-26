@@ -124,7 +124,7 @@ impl FromStr for HullKey {
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     HullKey::VALUES.iter().copied()
       .find(|hull_key| hull_key.save_key() == s)
-      .ok_or(super::InvalidKey)
+      .ok_or(super::InvalidKey::Hull)
   }
 }
 

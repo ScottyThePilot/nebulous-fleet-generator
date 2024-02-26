@@ -31,8 +31,34 @@ xml::impl_serialize_nodes_display! {
 
 
 #[derive(Debug, Error, Clone, Copy)]
-#[error("invalid key")]
-pub struct InvalidKey;
+pub enum InvalidKey {
+  #[error("invalid faction key")]
+  Faction,
+  #[error("invalid component key")]
+  Component,
+  #[error("invalid hull key")]
+  Hull,
+  #[error("invalid seeker key")]
+  Seeker,
+  #[error("invalid missile body key")]
+  MissileBody,
+  #[error("invalid missile component key")]
+  MissileComponent,
+  #[error("invalid missile size mask")]
+  MissileSizeMask,
+  #[error("invalid missile role")]
+  MissileRole,
+  #[error("invalid target type")]
+  AntiRadiationTargetType,
+  #[error("invalid target type")]
+  DefensiveTargetType,
+  #[error("invalid maneuvers")]
+  Maneuvers,
+  #[error("invalid munition key")]
+  Munition,
+  #[error("invalid ordering")]
+  Ordering
+}
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -57,7 +83,7 @@ impl FromStr for Faction {
     match s {
       "Stock/Alliance" => Ok(Self::Alliance),
       "Stock/Protectorate" => Ok(Self::Protectorate),
-      _ => Err(InvalidKey)
+      _ => Err(InvalidKey::Faction)
     }
   }
 }

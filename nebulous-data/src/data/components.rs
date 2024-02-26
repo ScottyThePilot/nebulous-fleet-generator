@@ -697,7 +697,7 @@ impl FromStr for ComponentKey {
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     ComponentKey::VALUES.iter().copied()
       .find(|component_key| component_key.save_key() == s)
-      .ok_or(super::InvalidKey)
+      .ok_or(super::InvalidKey::Component)
   }
 }
 
