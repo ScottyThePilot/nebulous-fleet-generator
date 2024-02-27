@@ -33,6 +33,16 @@ pub enum MunitionVariant {
   }
 }
 
+impl MunitionVariant {
+  pub const fn is_shell(self) -> bool {
+    matches!(self, MunitionVariant::Shell { .. })
+  }
+
+  pub const fn is_missile(self) -> bool {
+    matches!(self, MunitionVariant::Missile { .. } | MunitionVariant::MissileOther { .. })
+  }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct MunitionDamage {
   pub armor_penetration: f32,

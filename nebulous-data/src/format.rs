@@ -254,6 +254,14 @@ impl ComponentData {
       ComponentData::ResizableCellLauncherData { missile_load, .. } => missile_load
     }
   }
+
+  pub fn into_load(self) -> Vec<MagazineSaveData> {
+    match self {
+      ComponentData::BulkMagazineData { load } => load,
+      ComponentData::CellLauncherData { missile_load } => missile_load,
+      ComponentData::ResizableCellLauncherData { missile_load, .. } => missile_load
+    }
+  }
 }
 
 impl DeserializeElement for ComponentData {
