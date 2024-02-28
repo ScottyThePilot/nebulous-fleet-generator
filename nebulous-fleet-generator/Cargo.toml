@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+float-ord = { version = "0.3.2" }
 nebulous-data = { path = "../nebulous-data" }
 rand = { version = "0.8.5", default-features = false, features = ["std", "getrandom"] }
 rand_xoshiro = { version = "0.6.0" }

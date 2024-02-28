@@ -11,7 +11,7 @@ extern crate thiserror;
 pub extern crate xml;
 
 #[macro_use]
-mod utils;
+pub mod utils;
 pub mod data;
 pub mod format;
 

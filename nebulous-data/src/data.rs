@@ -74,6 +74,13 @@ impl Faction {
       Self::Protectorate => "Stock/Protectorate"
     }
   }
+
+  pub const fn name(self) -> &'static str {
+    match self {
+      Self::Alliance => "Shelter Alliance",
+      Self::Protectorate => "Outlying Systems Protectorate"
+    }
+  }
 }
 
 impl FromStr for Faction {

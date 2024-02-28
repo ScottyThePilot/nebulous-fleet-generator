@@ -24,7 +24,6 @@ pub(crate) fn probability_any(list: &[f32]) -> f32 {
   }
 }
 
-#[macro_export]
 macro_rules! zsize {
   ($expr:expr) => (match std::num::NonZeroUsize::new($expr) {
     Option::Some(__v) => __v,
@@ -75,3 +74,78 @@ impl Size {
     self.x * self.y * self.z
   }
 }
+
+#[inline]
+pub fn lerp<T: Lerp<Factor>, Factor: LerpFactor>(a: T, b: T, factor: Factor) -> T {
+  Lerp::lerp(a, b, factor)
+}
+
+pub trait Lerp<Factor: LerpFactor>: Sized {
+  /// Linearly interpolates between two values.
+  ///
+  /// When `factor` is 0, the result will be the value of `from`.
+  ///
+  /// When `factor` is 1, the result will be the value of `to`.
+  fn lerp(from: Self, to: Self, factor: Factor) -> Self;
+
+  /// Linearly interpolates between a list of values.
+  /// Returns `None` if the provided list is empty or `factor` is out of bounds.
+  fn lerp_slice(slice: &[Self], factor: Factor) -> Option<Self> where Self: Clone {
+    LerpFactor::lerp_slice(slice, factor)
+  }
+
+  fn lerp_slice_normalized(slice: &[Self], factor: Factor) -> Option<Self> where Self: Clone {
+    LerpFactor::lerp_slice_normalized(slice, factor)
+  }
+}
+
+pub trait LerpFactor: Copy {
+  fn lerp_slice<T: Lerp<Self> + Clone>(slice: &[T], factor: Self) -> Option<T>;
+
+  fn lerp_slice_normalized<T: Lerp<Self> + Clone>(slice: &[T], factor: Self) -> Option<T>;
+}
+
+macro_rules! impl_lerp_float {
+  ($Float:ty) => {
+    impl Lerp<$Float> for $Float {
+      fn lerp(from: Self, to: Self, factor: $Float) -> Self {
+        from.mul_add(1.0 - factor, to * factor)
+      }
+    }
+
+    impl<T, const N: usize> Lerp<$Float> for [T; N]
+    where T: Lerp<$Float> + Clone {
+      fn lerp(from: Self, to: Self, factor: $Float) -> Self {
+        from.into_iter().zip(to.into_iter())
+          .map(|(from, to)| T::lerp(from, to, factor))
+          .collect::<Vec<T>>()
+          .try_into().ok()
+          .expect("infallible")
+      }
+    }
+
+    impl LerpFactor for $Float {
+      fn lerp_slice<T: Lerp<Self> + Clone>(slice: &[T], factor: Self) -> Option<T> {
+        if slice.is_empty() { return None };
+        let lower = factor.floor() as usize;
+        let upper = factor.ceil() as usize;
+        if lower == upper {
+          slice.get(lower).cloned()
+        } else {
+          let lower = slice.get(lower).cloned()?;
+          let upper = slice.get(upper).cloned()?;
+          let factor = factor.rem_euclid(1.0);
+          Some(T::lerp(lower, upper, factor))
+        }
+      }
+
+      fn lerp_slice_normalized<T: Lerp<Self> + Clone>(slice: &[T], factor: Self) -> Option<T> {
+        let factor = factor.clamp(0.0, 1.0) * ((slice.len() - 1) as $Float);
+        LerpFactor::lerp_slice(slice, factor)
+      }
+    }
+  };
+}
+
+impl_lerp_float!(f32);
+impl_lerp_float!(f64);
