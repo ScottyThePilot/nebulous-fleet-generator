@@ -51,3 +51,11 @@ impl RngCore for Random {
     self.inner.try_fill_bytes(dest)
   }
 }
+
+macro_rules! any {
+  ($($expr:expr),* $(,)?) => ($($expr ||)* false);
+}
+
+macro_rules! all {
+  ($($expr:expr),* $(,)?) => ($($expr &&)* true);
+}

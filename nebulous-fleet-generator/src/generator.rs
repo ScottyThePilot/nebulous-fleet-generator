@@ -54,6 +54,7 @@ fn step_stage<S: Stage>(rng: &mut Random, parameters: &Parameters, layers: &Gene
     .flat_map(|fleet| S::operation(&mut Random::derive(rng), parameters, fleet))
     .filter(|fleet| S::is_fleet_legal(parameters, fleet))
     .map(FleetState::make_sorted)
+    .chain(layers.iter().flatten().cloned())
     .collect::<GeneratorStateLayer>();
   layer.sort_by_cached_key(|fleet| Reverse(FloatOrd(S::get_fleet_score(parameters, fleet))));
   layer.dedup_by(|a, b| FleetState::similar(&a, &b));
@@ -107,7 +108,7 @@ impl Stage for Stage0 {
     let mut utility_hulls_present = HashSet::new();
     for ship in fleet.ships() {
       let purpose = &parameters.fleet_planning.purposes[ship.purpose()];
-      score += parameters.hulls[ship.hull_key()].score;
+      score += parameters.hulls[ship.hull_key()].score_weight;
       score += purpose.score;
       match purpose.meta {
         PurposeMeta::General => {

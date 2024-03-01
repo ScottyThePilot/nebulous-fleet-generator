@@ -85,7 +85,9 @@ impl Index<HullKey> for ParametersHullsList {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ParametersHull {
-  pub score: f32,
+  /// Hulls do not apply a flat score, otherwise the generator would spam as many of the cheapest ship it can.
+  /// This score is totaled between all of the ships in the fleet and then divided by the number of ships.
+  pub score_weight: f32,
   //pub opponent_armor_thickness_min: f32,
   //pub opponent_armor_thickness_max: f32,
   pub points_budget_min: usize,
