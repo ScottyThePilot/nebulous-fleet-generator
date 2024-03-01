@@ -9,5 +9,5 @@ nebulous-data = { path = "../nebulous-data" }
 rand = { version = "0.8.5", default-features = false, features = ["std", "getrandom"] }
 rand_xoshiro = { version = "0.6.0" }
 serde = { version = "1.0", features = ["derive", "rc"] }
-singlefile = { version = "0.2.1" }
+singlefile = { version = "0.2.1", default-features = false }
 singlefile-formats = { version = "0.2.1", features = ["toml-serde"] }

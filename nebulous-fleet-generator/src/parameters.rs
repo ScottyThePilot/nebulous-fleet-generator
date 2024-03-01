@@ -18,6 +18,7 @@ pub struct ParametersStage {
   pub steps: usize,
   pub max_trunks: usize,
   pub max_branches: Option<usize>,
+  pub passthrough_trunks: usize
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
