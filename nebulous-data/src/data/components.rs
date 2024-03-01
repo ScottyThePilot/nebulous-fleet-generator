@@ -87,7 +87,7 @@ impl Component {
         Some(ComponentVariant::WeaponMissileBank { cells, .. }) => match cells {
           MissileLauncherCells::Constant { .. } => Some(nominal_undersize),
           MissileLauncherCells::Tiling { .. } => Some(tiling_undersize),
-          MissileLauncherCells::Function { function } => function(socket_size).map(|_| 0)
+          MissileLauncherCells::Function { groups, .. } => groups(socket_size).map(|_| 0)
         },
         Some(..) | None => Some(nominal_undersize)
       }
@@ -255,22 +255,20 @@ pub struct FireControl {
 
 #[derive(Debug, Clone, Copy)]
 pub enum MissileLauncherCells {
+  /// Missile launcher has a fixed quantity of cells.
   Constant {
     count: usize
   },
+  /// Missile launcher will tile in the x and z directions based on its base size.
   Tiling {
-    count: usize,
+    count_per_group: usize,
     /// Whether each tiled group of cells must contain the same missile type.
     separated_groups: bool
   },
+  /// Missile launcher's size is determined by a function.
   Function {
-    function: fn(Size) -> Option<usize>
-  }
-}
-
-impl MissileLauncherCells {
-  const fn function(function: fn(Size) -> Option<usize>) -> Self {
-    Self::Function { function }
+    count_per_group: usize,
+    groups: fn(Size) -> Option<[usize; 2]>
   }
 }
 
@@ -1296,13 +1294,17 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size3,
-      cells: MissileLauncherCells::function(|size| match size {
-        // CLS-3 is not available for 3x3 mounts
-        Size { x: 3, y, z: 5 } if y >= 4 => Some(6),
-        Size { x: 6, y, z: 6 } if y >= 4 => Some(16),
-        Size { x: 8, y, z: 8 } if y >= 4 => Some(20),
-        _ => None
-      })
+      cells: MissileLauncherCells::Function {
+        count_per_group: 2,
+        groups: |size| match size {
+          // CLS-3 is not available for 3x4x3 mounts on the Raines or Keystone,
+          // but *is* available for 3x4x3 mounts on the Axford and Solomon, not sure why.
+          Size { x: 3, y, z: 5 } if y >= 4 => Some([1, 3]), // 6
+          Size { x: 6, y, z: 6 } if y >= 4 => Some([2, 4]), // 16
+          Size { x: 8, y, z: 8 } if y >= 4 => Some([2, 5]), // 20
+          _ => None
+        }
+      }
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -1429,7 +1431,7 @@ pub mod list {
       munition_family: MunitionFamily::ContainerMissile,
       missile_size: MissileSize::Size3,
       cells: MissileLauncherCells::Tiling {
-        count: 24,
+        count_per_group: 24,
         separated_groups: true
       }
     }),
@@ -3768,13 +3770,16 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size2,
-      cells: MissileLauncherCells::function(|size| match size {
-        Size { x: 3, y, z: 3 } if y >= 4 => Some(16),
-        Size { x: 3, y, z: 5 } if y >= 4 => Some(24),
-        Size { x: 6, y, z: 6 } if y >= 4 => Some(64),
-        Size { x: 8, y, z: 8 } if y >= 4 => Some(80),
-        _ => None
-      })
+      cells: MissileLauncherCells::Function {
+        count_per_group: 8,
+        groups: |size| match size {
+          Size { x: 3, y, z: 3 } if y >= 4 => Some([1, 2]), // 16
+          Size { x: 3, y, z: 5 } if y >= 4 => Some([1, 3]), // 24
+          Size { x: 6, y, z: 6 } if y >= 4 => Some([2, 4]), // 64
+          Size { x: 8, y, z: 8 } if y >= 4 => Some([2, 5]), // 80
+          _ => None
+        }
+      }
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
@@ -3800,13 +3805,16 @@ pub mod list {
       role: WeaponRole::Offensive,
       munition_family: MunitionFamily::StandardMissile,
       missile_size: MissileSize::Size3,
-      cells: MissileLauncherCells::function(|size| match size {
-        Size { x: 3, y, z: 3 } if y >= 4 => Some(4),
-        Size { x: 3, y, z: 5 } if y >= 4 => Some(6),
-        Size { x: 6, y, z: 6 } if y >= 4 => Some(16),
-        Size { x: 8, y, z: 8 } if y >= 4 => Some(20),
-        _ => None
-      })
+      cells: MissileLauncherCells::Function {
+        count_per_group: 2,
+        groups: |size| match size {
+          Size { x: 3, y, z: 3 } if y >= 4 => Some([1, 2]), // 4
+          Size { x: 3, y, z: 5 } if y >= 4 => Some([1, 3]), // 6
+          Size { x: 6, y, z: 6 } if y >= 4 => Some([2, 4]), // 16
+          Size { x: 8, y, z: 8 } if y >= 4 => Some([2, 5]), // 20
+          _ => None
+        }
+      }
     }),
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
