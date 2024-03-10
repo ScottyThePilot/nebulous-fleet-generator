@@ -2,6 +2,8 @@ use super::components::ComponentKind;
 use super::{Buff, Direction, Faction};
 use crate::utils::Size;
 
+use bytemuck::Contiguous;
+
 use std::fmt;
 use std::str::FromStr;
 
@@ -58,7 +60,7 @@ impl HullSocket {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 pub enum HullKey {
   SprinterCorvette,
   RainesFrigate,
@@ -102,27 +104,17 @@ impl HullKey {
     }
   }
 
-  pub const VALUES: &'static [Self] = &[
-    Self::SprinterCorvette,
-    Self::RainesFrigate,
-    Self::KeystoneDestroyer,
-    Self::VauxhallLightCruiser,
-    Self::AxfordHeavyCruiser,
-    Self::SolomonBattleship,
-    Self::ShuttleClipper,
-    Self::TugboatClipper,
-    Self::CargoFeederMonitor,
-    Self::OcelloCommandCruiser,
-    Self::BulkFreighterLineShip,
-    Self::ContainerLinerLineShip
-  ];
+  #[inline]
+  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
+    crate::utils::ContiguousEnumValues::new()
+  }
 }
 
 impl FromStr for HullKey {
   type Err = super::InvalidKey;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    HullKey::VALUES.iter().copied()
+    HullKey::values()
       .find(|hull_key| hull_key.save_key() == s)
       .ok_or(super::InvalidKey::Hull)
   }

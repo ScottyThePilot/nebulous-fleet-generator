@@ -70,6 +70,7 @@ trait Stage {
   fn is_fleet_legal(parameters: &Parameters, fleet: &FleetState) -> bool;
 }
 
+#[derive(Debug, Clone, Copy, Default)]
 struct Stage0;
 
 impl Stage for Stage0 {

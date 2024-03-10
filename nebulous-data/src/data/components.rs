@@ -3,6 +3,8 @@ use super::munitions::{MunitionFamily, WeaponRole};
 use super::{Buff, Faction, MissileSize};
 use crate::utils::Size;
 
+use bytemuck::Contiguous;
+
 use std::fmt;
 use std::num::NonZeroUsize as zsize;
 use std::str::FromStr;
@@ -273,7 +275,7 @@ pub enum MissileLauncherCells {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 pub enum ComponentKey {
   ActivelyCooledAmplifiers,
   AdaptiveRadarReceiver,
@@ -553,147 +555,17 @@ impl ComponentKey {
     }
   }
 
-  pub const VALUES: &'static [Self] = &[
-    Self::ActivelyCooledAmplifiers,
-    Self::AdaptiveRadarReceiver,
-    Self::AmmunitionElevators,
-    Self::AnalysisAnnex,
-    Self::AuxiliarySteering,
-    Self::BW1500Drive,
-    Self::BW1500RDrive,
-    Self::BW2000Drive,
-    Self::BW800Drive,
-    Self::BW800RDrive,
-    Self::BasicCIC,
-    Self::BattleDressingStation,
-    Self::Berthing,
-    Self::BoostedReactor,
-    Self::BulkMagazine,
-    Self::BulwarkHuntress,
-    Self::C30Cannon,
-    Self::C53Cannon,
-    Self::C56Cannon,
-    Self::C65Cannon,
-    Self::C81PlasmaCannon,
-    Self::C90Cannon,
-    Self::CHI7700Drive,
-    Self::CHI777YardDrive,
-    Self::CHI9100LongHaulDrive,
-    Self::CLS3Launcher,
-    Self::CR10Antenna,
-    Self::CR70Antenna,
-    Self::CitadelCIC,
-    Self::CitadelMagazine,
-    Self::CivilianReactor,
-    Self::ContainerBankLauncher,
-    Self::ContainerStackLauncher,
-    Self::DamageControlCentral,
-    Self::DamageControlComplex,
-    Self::E15MasqueradeDeceptionModule,
-    Self::E20LighthouseIlluminator,
-    Self::E55SpotlightIlluminator,
-    Self::E57FloodlightIlluminator,
-    Self::E70InterruptionJammer,
-    Self::E71HangupJammer,
-    Self::E90BlanketJammer,
-    Self::ES22PinardElectronicSupportModule,
-    Self::ES32ScryerMissileIDSystem,
-    Self::EnergyRegulator,
-    Self::FM200Drive,
-    Self::FM200RDrive,
-    Self::FM230WhiplashDrive,
-    Self::FM240DragonflyDrive,
-    Self::FM280RaiderDrive,
-    Self::FM30XProwlerDrive,
-    Self::FM500Drive,
-    Self::FM500RDrive,
-    Self::FM530WhiplashDrive,
-    Self::FM540DragonflyDrive,
-    Self::FM580RaiderDrive,
-    Self::FR3300MicroReactor,
-    Self::FR4800Reactor,
-    Self::FocusedParticleAccelerator,
-    Self::GunPlottingCenter,
-    Self::IntelligenceCenter,
-    Self::IthacaBridgemaster,
-    Self::J15BellbirdJammer,
-    Self::J360LyrebirdJammer,
-    Self::JuryRiggedReactor,
-    Self::L50BlackjackLaserDazzler,
-    Self::LargeDCLocker,
-    Self::LargeDCStorage,
-    Self::LauncherDelugeSystem,
-    Self::LightCivilianReactor,
-    Self::ML9MineLauncher,
-    Self::MLS2Launcher,
-    Self::MLS3Launcher,
-    Self::MagazineSprinklers,
-    Self::MissileParallelInterface,
-    Self::MissileProgrammingBus,
-    Self::MissileProgrammingBusArray,
-    Self::Mk20DefenderPDT,
-    Self::Mk25ReboundPDT,
-    Self::Mk29StonewallPDT,
-    Self::Mk550Railgun,
-    Self::Mk600BeamCannon,
-    Self::Mk610BeamTurret,
-    Self::Mk61Cannon,
-    Self::Mk62Cannon,
-    Self::Mk64Cannon,
-    Self::Mk65Cannon,
-    Self::Mk66Cannon,
-    Self::Mk68Cannon,
-    Self::Mk81Railgun,
-    Self::Mk90AuroraPDT,
-    Self::Mk95SarissaPDT,
-    Self::MountGyros,
-    Self::P11PavisePDT,
-    Self::P20BastionPDT,
-    Self::P60GrazerPDT,
-    Self::PlantControlCenter,
-    Self::R400BloodhoundLRTRadar,
-    Self::R550EarlyWarningRadar,
-    Self::RF101BullseyeRadar,
-    Self::RF44PinpointRadar,
-    Self::RL18Launcher,
-    Self::RL36Launcher,
-    Self::RM50ParallaxRadar,
-    Self::RS35FrontlineRadar,
-    Self::RS41SpyglassRadar,
-    Self::RapidCycleCradle,
-    Self::RapidDCLocker,
-    Self::RedundantReactorFailsafes,
-    Self::ReinforcedCIC,
-    Self::ReinforcedDCLocker,
-    Self::ReinforcedMagazine,
-    Self::ReinforcedThrusterNozzles,
-    Self::SignatureScrambler,
-    Self::SmallDCLocker,
-    Self::SmallEnergyRegulator,
-    Self::SmallReactorBooster,
-    Self::SmallWorkshop,
-    Self::StrikePlanningCenter,
-    Self::StrobeCorrelator,
-    Self::SundriveRacingPro,
-    Self::SupplementaryRadioAmplifiers,
-    Self::T20Cannon,
-    Self::T30Cannon,
-    Self::T81PlasmaCannon,
-    Self::TE45MassDriver,
-    Self::TLS3Launcher,
-    Self::TrackCorrelator,
-    Self::VLS123Launcher,
-    Self::VLS146Launcher,
-    Self::VLS2Launcher,
-    Self::VLS3Launcher
-  ];
+  #[inline]
+  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
+    crate::utils::ContiguousEnumValues::new()
+  }
 }
 
 impl FromStr for ComponentKey {
   type Err = super::InvalidKey;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    ComponentKey::VALUES.iter().copied()
+    ComponentKey::values()
       .find(|component_key| component_key.save_key() == s)
       .ok_or(super::InvalidKey::Component)
   }

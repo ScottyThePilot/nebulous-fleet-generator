@@ -40,7 +40,7 @@ survivability = 0.25
 [fleet_planning.purposes.missileer]
 meta = "general"
 budget = 1.0
-score = 100.0
+score = 99.75
 short_range_combat = 0.25
 medium_range_combat = 0.50
 long_range_combat = 0.00

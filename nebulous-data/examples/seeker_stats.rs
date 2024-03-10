@@ -1,4 +1,4 @@
-use nebulous_data::data::missiles::{SeekerStrategy, CountermeasureProbabilities};
+use nebulous_data::data::missiles::seekers::{SeekerStrategy, CountermeasureProbabilities};
 
 fn main() {
   let mut out = String::new();
@@ -18,18 +18,18 @@ fn main() {
       .map(|&layout| layout.cost())
       .min_by(f32::total_cmp)
       .expect("infallible");
-    let decoy_probability = seeker_strategy.decoy_probability(Default::default());
-    let decoy_probability_no_ewar = seeker_strategy.decoy_probability(no_ewar);
+    let defeat_probability = seeker_strategy.defeat_probability(Default::default());
+    let defeat_probability_no_ewar = seeker_strategy.defeat_probability(no_ewar);
 
     out.push_str(&format!("### `{}`\n", seeker_strategy));
     out.push_str(&format!("Minimum Cost: **{:.2}**\n", minimum_cost));
     out.push_str(&format!("Guidance quality: **{:.2}**\n", average_guidance_quality));
-    out.push_str(&format!("Decoy probability: **{:.2}%**\n", decoy_probability * 100.0));
-    out.push_str(&format!("Decoy probability (no EWAR): **{:.2}%**\n", decoy_probability_no_ewar * 100.0));
-    out.push_str("Can be decoyed by:\n");
-    for &decoy_combination in seeker_strategy.decoyed_by {
+    out.push_str(&format!("Defeat probability: **{:.2}%**\n", defeat_probability * 100.0));
+    out.push_str(&format!("Defeat probability (no EWAR): **{:.2}%**\n", defeat_probability_no_ewar * 100.0));
+    out.push_str("Can be defeated by:\n");
+    for &countermeasure_combination in seeker_strategy.defeated_by {
       out.push_str("- ");
-      for (i, &countermeasure) in decoy_combination.iter().enumerate() {
+      for (i, &countermeasure) in countermeasure_combination.iter().enumerate() {
         if i != 0 { out.push_str(" + ") };
         out.push_str(countermeasure.to_str());
       };

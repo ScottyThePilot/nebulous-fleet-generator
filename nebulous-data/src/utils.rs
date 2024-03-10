@@ -1,4 +1,65 @@
+use bytemuck::Contiguous;
 use itertools::Itertools;
+
+use std::ops::RangeInclusive;
+
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContiguousEnumValues<T: Contiguous> {
+  inner: RangeInclusive<T::Int>
+}
+
+impl<T: Contiguous> ContiguousEnumValues<T> {
+  pub const fn new() -> Self {
+    ContiguousEnumValues {
+      inner: T::MIN_VALUE..=T::MAX_VALUE
+    }
+  }
+}
+
+impl<T> Iterator for ContiguousEnumValues<T>
+where T: Contiguous, RangeInclusive<T::Int>: Iterator<Item = T::Int> {
+  type Item = T;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    self.inner.next().map(|int| T::from_integer(int).unwrap())
+  }
+
+  fn size_hint(&self) -> (usize, Option<usize>) {
+    self.inner.size_hint()
+  }
+
+  fn count(self) -> usize where Self: Sized {
+    self.inner.count()
+  }
+
+  fn fold<B, F>(self, init: B, f: F) -> B
+  where Self: Sized, F: FnMut(B, Self::Item) -> B {
+    self.inner.map(|int| T::from_integer(int).unwrap()).fold(init, f)
+  }
+}
+
+impl<T> DoubleEndedIterator for ContiguousEnumValues<T>
+where T: Contiguous, RangeInclusive<T::Int>: DoubleEndedIterator<Item = T::Int> {
+  fn next_back(&mut self) -> Option<Self::Item> {
+    self.inner.next_back().map(|int| T::from_integer(int).unwrap())
+  }
+
+  fn rfold<B, F>(self, init: B, f: F) -> B
+  where Self: Sized, F: FnMut(B, Self::Item) -> B {
+    self.inner.map(|int| T::from_integer(int).unwrap()).rfold(init, f)
+  }
+}
+
+impl<T> ExactSizeIterator for ContiguousEnumValues<T>
+where T: Contiguous, RangeInclusive<T::Int>: ExactSizeIterator<Item = T::Int> {
+  fn len(&self) -> usize {
+    self.inner.len()
+  }
+}
+
+
 
 /// `P(A or B or C or N ...)`
 pub(crate) fn probability_any(list: &[f32]) -> f32 {
@@ -149,3 +210,13 @@ macro_rules! impl_lerp_float {
 
 impl_lerp_float!(f32);
 impl_lerp_float!(f64);
+
+#[macro_export]
+macro_rules! any {
+  ($($expr:expr),* $(,)?) => ($($expr ||)* false);
+}
+
+#[macro_export]
+macro_rules! all {
+  ($($expr:expr),* $(,)?) => ($($expr &&)* true);
+}

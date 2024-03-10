@@ -157,15 +157,14 @@ pub enum MunitionState {
 
 /// Iterates through hulls available to the given faction.
 pub fn iter_faction_ships(faction: Faction) -> impl Iterator<Item = HullKey> + DoubleEndedIterator + Clone {
-  HullKey::VALUES.into_iter().copied()
-    .filter(move |&hull_key| hull_key.hull().faction == faction)
+  HullKey::values().filter(move |&hull_key| hull_key.hull().faction == faction)
 }
 
 /// Iterates through components available to the given hull socket.
 pub fn iter_socket_components(hull_key: HullKey, socket: usize) -> impl Iterator<Item = ComponentKey> + DoubleEndedIterator + Clone {
   let hull = hull_key.hull();
   let socket = &hull.sockets[socket];
-  ComponentKey::VALUES.into_iter().copied().filter(move |&component_key| {
+  ComponentKey::values().filter(move |&component_key| {
     let component = component_key.component();
     component.is_usable_on(hull_key) && component.can_fit_in(socket.size)
   })

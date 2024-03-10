@@ -1,8 +1,12 @@
 use crate::data::{Faction, MissileSize};
 use crate::data::hulls::HullKey;
-use crate::data::missiles::{MissileBodyKey, SeekerMode, Maneuvers, EngineSettings};
+use crate::data::missiles::Maneuvers;
+use crate::data::missiles::bodies::MissileBodyKey;
+use crate::data::missiles::seekers::SeekerMode;
+use crate::data::missiles::engines::EngineSettings;
 use crate::data::components::ComponentKey;
 
+use bytemuck::Contiguous;
 use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes, Attributes};
 
 pub use xml::uuid::Uuid;
@@ -971,7 +975,7 @@ xml::impl_deserialize_nodes_parse!(DefensiveTargetType);
 xml::impl_serialize_nodes_display!(DefensiveTargetType);
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 pub enum MissileComponentKey {
   // Seeker Components
   CommandReceiver,
@@ -1027,6 +1031,11 @@ impl MissileComponentKey {
       Self::BlastFragmentation => "Stock/Blast Fragmentation",
       Self::BlastFragmentationEL => "Stock/Blast Fragmentation EL",
     }
+  }
+
+  #[inline]
+  pub fn values() -> crate::utils::ContiguousEnumValues<Self> {
+    crate::utils::ContiguousEnumValues::new()
   }
 }
 

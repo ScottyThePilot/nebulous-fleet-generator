@@ -13,8 +13,8 @@ xml::impl_deserialize_nodes_parse! {
   self::components::ComponentKey,
   self::hulls::HullKey,
   self::missiles::Maneuvers,
-  self::missiles::MissileBodyKey,
-  self::missiles::SeekerMode,
+  self::missiles::bodies::MissileBodyKey,
+  self::missiles::seekers::SeekerMode,
   self::munitions::MunitionKey
 }
 
@@ -23,8 +23,8 @@ xml::impl_serialize_nodes_display! {
   self::components::ComponentKey,
   self::hulls::HullKey,
   self::missiles::Maneuvers,
-  self::missiles::MissileBodyKey,
-  self::missiles::SeekerMode,
+  self::missiles::bodies::MissileBodyKey,
+  self::missiles::seekers::SeekerMode,
   self::munitions::MunitionKey
 }
 
