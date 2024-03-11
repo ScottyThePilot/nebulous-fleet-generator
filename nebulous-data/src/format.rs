@@ -14,7 +14,7 @@ pub use xml::{read_nodes, write_nodes};
 
 use std::convert::Infallible;
 use std::fmt;
-use std::num::NonZeroUsize;
+use std::num::NonZeroUsize as zsize;
 use std::ops::Index;
 use std::str::FromStr;
 
@@ -628,7 +628,7 @@ impl SerializeElement for MissileTemplate {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MissileSocket {
-  pub size: NonZeroUsize,
+  pub size: zsize,
   pub installed_component: Option<MissileComponent>
 }
 
@@ -638,7 +638,7 @@ impl DeserializeElement for MissileSocket {
   fn deserialize_element(element: Element) -> Result<Self, Self::Error> {
     element.expect_named("MissileSocket")?;
     let [size, installed_component] = element.children.find_elements(["Size", "InstalledComponent"])?;
-    let size = size.ok_or(xml::Error::missing_element("Size"))?.children.deserialize::<NonZeroUsize>()?;
+    let size = size.ok_or(xml::Error::missing_element("Size"))?.children.deserialize::<zsize>()?;
     let installed_component = installed_component.map(MissileComponent::deserialize_element).transpose()?;
     Ok(MissileSocket { size, installed_component })
   }

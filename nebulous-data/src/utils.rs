@@ -141,6 +141,12 @@ pub fn lerp<T: Lerp<Factor>, Factor: LerpFactor>(a: T, b: T, factor: Factor) -> 
   Lerp::lerp(a, b, factor)
 }
 
+#[inline]
+pub fn lerp2<T: Lerp<Factor>, Factor: LerpFactor>(v: [T; 2], factor: Factor) -> T {
+  let [a, b] = v;
+  Lerp::lerp(a, b, factor)
+}
+
 pub trait Lerp<Factor: LerpFactor>: Sized {
   /// Linearly interpolates between two values.
   ///

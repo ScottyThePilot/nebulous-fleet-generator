@@ -40,7 +40,7 @@ impl AvionicsKey {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PayloadKey {
+pub enum WarheadKey {
   HEImpact,
   HEKineticPenetrator,
   BlastFragmentation,

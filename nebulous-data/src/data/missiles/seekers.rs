@@ -1,9 +1,10 @@
 use std::fmt;
-use std::num::NonZeroUsize;
+use std::num::NonZeroUsize as zsize;
 use std::ops::Index;
 use std::str::FromStr;
 
 use bytemuck::Contiguous;
+use itertools::{Itertools, Either};
 
 
 
@@ -273,12 +274,10 @@ pub struct SeekerStrategy2 {
 }
 
 impl SeekerStrategy2 {
-  pub const fn len(&self) -> NonZeroUsize {
-    let len = self.secondaries.len().wrapping_add(1);
-    if let Some(len) = NonZeroUsize::new(len) { len } else { panic!("overflow") }
+  pub const fn len(&self) -> zsize {
+    zsize!(self.secondaries.len().wrapping_add(1))
   }
 
-  /// Whether or not this seeker setup fits a subjective
   pub fn is_reasonable(&self) -> bool {
     fn has_redundancy(seekers: &[SeekerKind]) -> bool {
       let mut unique = std::collections::HashSet::new();
@@ -320,6 +319,31 @@ impl SeekerStrategy2 {
 
   pub fn iter(&self) -> SeekerStrategyIter {
     std::iter::once((self.primary, SeekerMode::Targeting)).chain(self.secondaries.iter().copied())
+  }
+
+  pub fn possibilities1() -> impl Iterator<Item = Self> {
+    SeekerKind::values().map(|primary| SeekerStrategy2 { primary, secondaries: Box::new([]) })
+  }
+
+  pub fn possibilities2() -> impl Iterator<Item = Self> {
+    let modes = [SeekerMode::Targeting, SeekerMode::Validation];
+    SeekerKind::values()
+      .cartesian_product(SeekerKind::values().cartesian_product(modes))
+      .map(|(primary, secondary)| SeekerStrategy2 { primary, secondaries: Box::new([secondary]) })
+  }
+}
+
+impl fmt::Display for SeekerStrategy2 {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fmt::Display::fmt(&self.primary, f)?;
+    for &(seeker, mode) in self.secondaries.iter() {
+      match mode {
+        SeekerMode::Targeting => write!(f, "/{seeker}")?,
+        SeekerMode::Validation => write!(f, "/[{seeker}]")?
+      };
+    };
+
+    Ok(())
   }
 }
 
