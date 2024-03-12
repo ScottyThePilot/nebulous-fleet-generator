@@ -55,8 +55,11 @@ pub struct MunitionDamage {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WeaponRole {
+  /// Usable for offensive purposes, only.
   Offensive,
+  /// Usable for defensive purposes, only.
   Defensive,
+  /// Usable for offensive or defensive purposes.
   DualPurpose,
   Utility,
   Decoy
@@ -770,7 +773,7 @@ pub mod list {
   pub const M30_MATTOCK_MINE: Munition = Munition {
     name: "M-30 'Mattock' Mine",
     save_key: "Stock/S3 Mine",
-    role: WeaponRole::Utility,
+    role: WeaponRole::Offensive,
     family: MunitionFamily::LoiteringMine,
     point_cost: 6,
     point_division: 1,
@@ -792,7 +795,7 @@ pub mod list {
   pub const M30N_MATTOCK_COOPERATIVE_MINE: Munition = Munition {
     name: "M-30-N 'Mattock' Cooperative Mine",
     save_key: "Stock/S3 Net Mine",
-    role: WeaponRole::Utility,
+    role: WeaponRole::Offensive,
     family: MunitionFamily::LoiteringMine,
     point_cost: 6,
     point_division: 1,
@@ -814,7 +817,7 @@ pub mod list {
   pub const M50_AUGER_SPRINT_MINE: Munition = Munition {
     name: "M-50 'Auger' Sprint Mine",
     save_key: "Stock/S3 Sprint Mine",
-    role: WeaponRole::Utility,
+    role: WeaponRole::Offensive,
     family: MunitionFamily::LoiteringMine,
     point_cost: 10,
     point_division: 1,
