@@ -5,10 +5,11 @@
   unreachable_pub
 )]
 
+pub extern crate bytemuck;
 extern crate itertools;
+pub extern crate nebulous_xml as xml;
 #[macro_use]
 extern crate thiserror;
-pub extern crate xml;
 
 #[macro_use]
 pub mod utils;
@@ -18,6 +19,7 @@ pub mod format;
 pub use crate::utils::Size;
 
 pub mod prelude {
+  #[doc(no_inline)]
   pub use bytemuck::Contiguous;
-  pub use crate::utils::{ContiguousExt, Lerp, lerp, lerp2};
+  pub use crate::utils::{ContiguousExt, Lerp, lerp, lerp2, Size};
 }

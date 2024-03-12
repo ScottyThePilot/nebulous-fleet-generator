@@ -9,8 +9,10 @@ use crate::data::components::ComponentKey;
 use bytemuck::Contiguous;
 use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes, Attributes};
 
-pub use xml::uuid::Uuid;
-pub use xml::{read_nodes, write_nodes};
+#[doc(no_inline)]
+pub use nebulous_xml::uuid::Uuid;
+#[doc(no_inline)]
+pub use nebulous_xml::{read_nodes, write_nodes};
 
 use std::convert::Infallible;
 use std::fmt;

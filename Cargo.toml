@@ -3,5 +3,5 @@ resolver = "2"
 members = [
   "nebulous-data",
   "nebulous-fleet-generator",
-  "xml"
+  "nebulous-xml"
 ]
