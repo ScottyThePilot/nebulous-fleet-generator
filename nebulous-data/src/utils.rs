@@ -1,6 +1,8 @@
 use bytemuck::Contiguous;
 use itertools::Itertools;
 
+use std::num::NonZeroU32 as z32;
+
 use std::ops::RangeInclusive;
 
 
@@ -217,6 +219,53 @@ macro_rules! impl_lerp_float {
 impl_lerp_float!(f32);
 impl_lerp_float!(f64);
 
+pub const fn bool_array_to_num<const N: usize>(array: [bool; N]) -> u32 {
+  let mut num = 0;
+  let mut i = 0;
+  while i < N {
+    let j = N - i - 1;
+    num <<= 1;
+    num |= array[j] as u32;
+    i += 1;
+  };
+
+  num
+}
+
+pub const fn bool_array_from_num<const N: usize>(mut num: u32) -> [bool; N] {
+  let mut array = [false; N];
+  let mut i = 0;
+  while i < N {
+    array[i] = (num & 1) != 0;
+    num >>= 1;
+    i += 1;
+  };
+
+  array
+}
+
+/// Produces an iterator from `1` to `2^BITS-1` (inclusive) ordered
+/// by the number of 1s in the binary representation of the number.
+pub fn combination_iter<const BITS: u32>() -> impl Iterator<Item = z32> + Clone {
+  // https://stackoverflow.com/a/51367629
+  fn next_combination(num: u32, mask: u32) -> u32 {
+    let last_one = num & (-(num as i32) as u32);
+    let last_zero = (num + last_one) & (!num) & mask;
+    if last_zero != 0 {
+      num + last_one + (last_zero / (last_one * 2)) - 1
+    } else if last_one > 1 {
+      mask / (last_one / 2)
+    } else {
+      (!num) & 1
+    }
+  }
+
+  let mask = (1 << BITS) - 1;
+  std::iter::successors(Some(z32::MIN), move |&num| {
+    z32::new(next_combination(num.get(), mask))
+  })
+}
+
 #[macro_export]
 macro_rules! any {
   ($($expr:expr),* $(,)?) => ($($expr ||)* false);
@@ -225,4 +274,22 @@ macro_rules! any {
 #[macro_export]
 macro_rules! all {
   ($($expr:expr),* $(,)?) => ($($expr &&)* true);
+}
+
+macro_rules! union_cast {
+  ($value:expr, $Union:ident, $from:ident, $to:ident) => (
+    std::mem::ManuallyDrop::into_inner($Union { $from: std::mem::ManuallyDrop::new($value) }.$to)
+  );
+}
+
+#[inline]
+pub(crate) const unsafe fn cast_ref<'a, T, U>(r: &'a T) -> &'a U {
+  debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<U>());
+  &*(r as *const T as *const U)
+}
+
+#[inline]
+pub(crate) unsafe fn cast_ref_mut<'a, T, U>(r: &'a mut T) -> &'a mut U {
+  debug_assert!(std::mem::size_of::<T>() == std::mem::size_of::<U>());
+  &mut *(r as *mut T as *mut U)
 }

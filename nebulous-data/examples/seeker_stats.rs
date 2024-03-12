@@ -1,40 +1,31 @@
-use nebulous_data::data::missiles::seekers::{SeekerStrategy, CountermeasureProbabilities};
+use nebulous_data::data::missiles::seekers::SeekerStrategyEntry;
 
 fn main() {
   let mut out = String::new();
+  for entry in SeekerStrategyEntry::get_entries_cached() {
+    let defeat_probability = entry.get_defeat_probability_default();
+    let defeat_probability_no_ewar = entry.get_defeat_probability_default_no_ewar();
 
-  let no_ewar = CountermeasureProbabilities {
-    radar_jamming: 0.0,
-    comms_jamming: 0.0,
-    ..Default::default()
-  };
+    let min_cost = entry.seeker_strategy.min_cost();
+    let max_cost = entry.seeker_strategy.max_cost();
 
-  for &seeker_strategy in SeekerStrategy::VALUES {
-    let seeker_layouts = seeker_strategy.layouts();
-    let average_guidance_quality = seeker_layouts.iter()
-      .map(|&layout| layout.guidance_quality())
-      .sum::<f32>() / seeker_layouts.len() as f32;
-    let minimum_cost = seeker_layouts.iter()
-      .map(|&layout| layout.cost())
-      .min_by(f32::total_cmp)
-      .expect("infallible");
-    let defeat_probability = seeker_strategy.defeat_probability(Default::default());
-    let defeat_probability_no_ewar = seeker_strategy.defeat_probability(no_ewar);
-
-    out.push_str(&format!("### `{}`\n", seeker_strategy));
-    out.push_str(&format!("Minimum Cost: **{:.2}**\n", minimum_cost));
-    out.push_str(&format!("Guidance quality: **{:.2}**\n", average_guidance_quality));
+    out.push_str(&format!("### `{}`\n", entry.seeker_strategy));
+    if min_cost == max_cost {
+      out.push_str(&format!("Cost: **{min_cost:.2}**\n"));
+    } else {
+      out.push_str(&format!("Cost: **{min_cost:.2} - {max_cost:.2}**\n"));
+    };
     out.push_str(&format!("Defeat probability: **{:.2}%**\n", defeat_probability * 100.0));
     out.push_str(&format!("Defeat probability (no EWAR): **{:.2}%**\n", defeat_probability_no_ewar * 100.0));
-    out.push_str("Can be defeated by:\n");
-    for &countermeasure_combination in seeker_strategy.defeated_by {
-      out.push_str("- ");
-      for (i, &countermeasure) in countermeasure_combination.iter().enumerate() {
-        if i != 0 { out.push_str(" + ") };
-        out.push_str(countermeasure.to_str());
+    if entry.countermeasure_methods.is_empty() {
+      out.push_str("Cannot be defeated!\n");
+    } else {
+      out.push_str("Can be defeated by:\n");
+      for &countermeasures in entry.countermeasure_methods.iter() {
+        out.push_str(&format!("- {countermeasures}\n"));
       };
-      out.push_str("\n");
     };
+
     out.push_str("\n");
   };
 

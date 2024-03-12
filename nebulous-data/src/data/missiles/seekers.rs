@@ -4,7 +4,10 @@ use std::ops::Index;
 use std::str::FromStr;
 
 use bytemuck::Contiguous;
-use itertools::{Itertools, Either};
+use itertools::Itertools;
+
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
+use std::sync::OnceLock;
 
 
 
@@ -24,17 +27,17 @@ pub enum SeekerKey {
 }
 
 impl SeekerKey {
-  pub const fn cost(self) -> (f32, f32) {
+  pub const fn cost(self) -> SeekerCost {
     match self {
-      Self::Command => (3.50, 3.00),
-      Self::FixedActiveRadar => (1.00, 0.25),
-      Self::SteerableActiveRadar => (1.50, 0.50),
-      Self::SteerableExtendedActiveRadar => (3.00, 1.00),
-      Self::FixedSemiActiveRadar => (0.00, 0.50),
-      Self::FixedAntiRadiation => (2.00, 2.00),
-      Self::FixedHomeOnJam => (0.50, 0.50,),
-      Self::ElectroOptical => (8.00, 5.00),
-      Self::WakeHoming => (0.25, 0.50)
+      Self::Command => SeekerCost::new(3.50, 3.00),
+      Self::FixedActiveRadar => SeekerCost::new(1.00, 0.25),
+      Self::SteerableActiveRadar => SeekerCost::new(1.50, 0.50),
+      Self::SteerableExtendedActiveRadar => SeekerCost::new(3.00, 1.00),
+      Self::FixedSemiActiveRadar => SeekerCost::new(0.00, 0.50),
+      Self::FixedAntiRadiation => SeekerCost::new(2.00, 2.00),
+      Self::FixedHomeOnJam => SeekerCost::new(0.50, 0.50),
+      Self::ElectroOptical => SeekerCost::new(8.00, 5.00),
+      Self::WakeHoming => SeekerCost::new(0.25, 0.50)
     }
   }
 
@@ -114,6 +117,28 @@ impl SeekerKind {
     }
   }
 
+  pub fn min_cost(self) -> SeekerCost {
+    self.iter_seeker_keys()
+      .map(SeekerKey::cost)
+      .reduce(SeekerCost::min)
+      .unwrap()
+  }
+
+  pub fn max_cost(self) -> SeekerCost {
+    self.iter_seeker_keys()
+      .map(SeekerKey::cost)
+      .reduce(SeekerCost::max)
+      .unwrap()
+  }
+
+  pub fn average_base_guidance_quality(self) -> f32 {
+    let seeker_keys = self.seeker_keys();
+    seeker_keys.iter().copied()
+      .map(SeekerKey::base_guidance_quality)
+      .reduce(|a, b| a + b)
+      .unwrap() / seeker_keys.len() as f32
+  }
+
   pub const fn can_measure_distance(self) -> bool {
     match self {
       Self::Command => true,
@@ -154,34 +179,63 @@ impl SeekerKind {
     }
   }
 
-  const fn countermeasures(self) -> &'static [Countermeasure] {
+  /// The mask of countermeasures that defeat this seeker.
+  pub const fn defeating_countermeasures_mask(self) -> CountermeasuresMask {
     match self {
-      Self::Command => &[
-        Countermeasure::CommsJamming
-      ],
-      Self::ActiveRadar | Self::SemiActiveRadar => &[
-        Countermeasure::RadarJamming,
-        Countermeasure::ChaffDecoy,
-        Countermeasure::ActiveDecoy
-      ],
-      Self::AntiRadiation => &[
-        Countermeasure::ActiveDecoy,
-        Countermeasure::CutRadar
-      ],
-      Self::HomeOnJam => &[],
-      Self::ElectroOptical => &[
-        Countermeasure::LaserDazzler
-      ],
-      Self::WakeHoming => &[
-        Countermeasure::FlareDecoy,
-        Countermeasure::CutEngines
-      ]
+      Self::Command => {
+        CountermeasuresMask { comms_jamming: true, ..CountermeasuresMask::NONE }
+      },
+      Self::ActiveRadar | Self::SemiActiveRadar => {
+        CountermeasuresMask { radar_jamming: true, chaff_decoy: true, active_decoy: true, ..CountermeasuresMask::NONE }
+      },
+      Self::AntiRadiation => {
+        CountermeasuresMask { active_decoy: true, cut_radar: true, ..CountermeasuresMask::NONE }
+      },
+      Self::HomeOnJam => {
+        CountermeasuresMask::NONE
+      },
+      Self::ElectroOptical => {
+        CountermeasuresMask { laser_dazzler: true, ..CountermeasuresMask::NONE }
+      },
+      Self::WakeHoming => {
+        CountermeasuresMask { flare_decoy: true, cut_engines: true, ..CountermeasuresMask::NONE }
+      }
     }
+  }
+
+  /// Whether or not this seeker (alone) is defeated by this single countermeasure.
+  pub const fn is_defeated_by_one(self, cm: Countermeasure) -> bool {
+    *self.defeating_countermeasures_mask().get(cm)
+  }
+
+  /// Whether or not this seeker (alone) is defeated by this set of countermeasures.
+  pub const fn is_defeated_by(self, countermeasures: CountermeasuresMask) -> bool {
+    self.get_defeating_countermeasures(countermeasures).is_some()
+  }
+
+  /// Whether or not this seeker (alone) is defeated by this set of countermeasures, and the subset of those countermeasures that defeated it.
+  pub const fn get_defeating_countermeasures(self, countermeasures: CountermeasuresMask) -> Option<CountermeasuresMask> {
+    // If any radar jamming is present, and the seeker is Anti-Radiation or Home-On-Jam, the seeker finds the target
+    if matches!(self, Self::AntiRadiation | Self::HomeOnJam) && *countermeasures.get(Countermeasure::RadarJamming) { return None };
+
+    //let countermeasures = countermeasures.map_with_tag(|cm, state| state && self.is_defeated_by_one(cm));
+    let countermeasures = self.defeating_countermeasures_mask().and(countermeasures);
+    if countermeasures.any() { Some(countermeasures) } else { None }
+  }
+
+  pub fn iter_seeker_keys(self) -> std::iter::Copied<std::slice::Iter<'static, SeekerKey>> {
+    self.seeker_keys().iter().copied()
   }
 
   #[inline]
   pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
     crate::utils::ContiguousEnumValues::new()
+  }
+}
+
+impl From<SeekerKey> for SeekerKind {
+  fn from(value: SeekerKey) -> Self {
+    value.seeker_kind()
   }
 }
 
@@ -225,115 +279,203 @@ impl fmt::Display for SeekerMode {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SeekerLayout {
-  pub primary: SeekerKey,
-  pub secondary: Option<(SeekerKey, SeekerMode)>
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SeekerCost {
+  pub targeting: f32,
+  pub validation: f32
 }
 
-impl SeekerLayout {
-  pub fn guidance_quality(self) -> f32 {
-    let primary = self.primary.base_guidance_quality() + 2.5;
-    if let Some((secondary, mode)) = self.secondary {
-      let secondary = secondary.base_guidance_quality();
-      match mode {
-        SeekerMode::Targeting => primary + secondary / 2.0,
-        SeekerMode::Validation => (primary + primary.max(secondary + 2.5)) / 2.0
-      }
-    } else {
-      primary
+impl SeekerCost {
+  pub const fn new(targeting: f32, validation: f32) -> Self {
+    SeekerCost { targeting, validation }
+  }
+
+  fn min(self, other: Self) -> Self {
+    SeekerCost {
+      targeting: self.targeting.min(other.targeting),
+      validation: self.validation.min(other.validation)
     }
   }
 
-  pub fn cost(self) -> f32 {
-    let primary_cost = self.primary.cost().0;
-    let secondary_cost = match self.secondary {
-      Some((secondary, SeekerMode::Targeting)) => secondary.cost().0,
-      Some((secondary, SeekerMode::Validation)) => secondary.cost().1,
-      None => 0.0
-    };
-
-    primary_cost + secondary_cost
-  }
-}
-
-impl fmt::Display for SeekerLayout {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self.secondary {
-      Some((secondary, SeekerMode::Targeting)) => write!(f, "{}/{}", self.primary, secondary),
-      Some((secondary, SeekerMode::Validation)) => write!(f, "{}/[{}]", self.primary, secondary),
-      None => write!(f, "{}", self.primary)
+  fn max(self, other: Self) -> Self {
+    SeekerCost {
+      targeting: self.targeting.max(other.targeting),
+      validation: self.validation.max(other.validation)
     }
   }
 }
 
-#[derive(Debug, Clone)]
-pub struct SeekerStrategy2 {
-  pub primary: SeekerKind,
-  pub secondaries: Box<[(SeekerKind, SeekerMode)]>
+impl Index<SeekerMode> for SeekerCost {
+  type Output = f32;
+
+  fn index(&self, mode: SeekerMode) -> &Self::Output {
+    match mode {
+      SeekerMode::Targeting => &self.targeting,
+      SeekerMode::Validation => &self.validation
+    }
+  }
 }
 
-impl SeekerStrategy2 {
+pub type SeekerStrategyFull = SeekerStrategy<SeekerKey>;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SeekerStrategy<S: Copy = SeekerKind> {
+  pub primary: S,
+  pub secondaries: Box<[(S, SeekerMode)]>
+}
+
+impl<S: Copy> SeekerStrategy<S> {
+  pub fn new(primary: S, secondaries: impl Into<Box<[(S, SeekerMode)]>>) -> Self {
+    SeekerStrategy { primary, secondaries: secondaries.into() }
+  }
+
+  pub fn new_single(primary: S) -> Self {
+    SeekerStrategy { primary, secondaries: Box::new([]) }
+  }
+
   pub const fn len(&self) -> zsize {
     zsize!(self.secondaries.len().wrapping_add(1))
   }
 
-  pub fn is_reasonable(&self) -> bool {
-    fn has_redundancy(seekers: &[SeekerKind]) -> bool {
-      let mut unique = std::collections::HashSet::new();
-      !seekers.iter().all(|&seeker| unique.insert(seeker)) ||
-      (unique.contains(&SeekerKind::ActiveRadar) && unique.contains(&SeekerKind::SemiActiveRadar))
-    }
+  pub fn iter(&self) -> SeekerStrategyIter<S> {
+    std::iter::once((self.primary, SeekerMode::Targeting)).chain(self.secondaries.iter().copied())
+  }
+}
 
-    let mut i = 0;
+impl<S: Copy + Into<SeekerKind>> SeekerStrategy<S> {
+  pub fn is_reasonable(&self) -> bool {
     let mut buffer = Vec::new();
     let mut iter = self.iter().peekable();
     let mut targeting_seekers = Vec::new();
+    // Loop through every group of targeting seekers and any attached validating seekers
     while let Some((seeker, validating_seekers)) = next_seeker_layer(&mut iter, &mut buffer) {
+      let previous_seeker = targeting_seekers.last().copied();
+      let is_primary = previous_seeker.is_none();
       targeting_seekers.push(seeker);
-      let is_primary = i == 0;
 
-      // Home-On-Jam seekers cannot be primary seekers, because Anti-Radiation would always be better
-      if matches!(seeker, SeekerKind::HomeOnJam) && is_primary { return false };
+      // Wake-Homing seekers cannot have backups because those backups would always be better as primaries
+      if matches!(self.primary.into(), SeekerKind::WakeHoming) && !is_primary { return false };
       // Command recievers cannot be backups because they would be better as primaries
       if matches!(seeker, SeekerKind::Command) && !is_primary { return false };
-      // Wake-Homing seekers cannot have backups because those backups would always be better as primaries
-      if matches!(self.primary, SeekerKind::WakeHoming) && !is_primary { return false };
       // Command recievers and Wake-Homing seekers cannot have validators
       if matches!(seeker, SeekerKind::Command | SeekerKind::WakeHoming) && !validating_seekers.is_empty() { return false };
-      // Electro-Optical cannot have validators, except for Command reciever validators
+      // Home-On-Jam seekers must only be used as backups for Active Radar or Semi-Active Radar seekers,
+      // and may not be primary seekers, because Anti-Radiation would always be better
+      if matches!(seeker, SeekerKind::HomeOnJam) && !matches!(previous_seeker, Some(SeekerKind::ActiveRadar | SeekerKind::SemiActiveRadar)) { return false };
+      // Electro-Optical seekers cannot have validators, except for Command reciever validators
       if matches!(seeker, SeekerKind::ElectroOptical) && !(validating_seekers.is_empty() || validating_seekers.contains(&SeekerKind::Command)) { return false };
-      // Active Radar and Semi-Active radar are not allowed to be validators
-      if validating_seekers.contains(&SeekerKind::ActiveRadar) || validating_seekers.contains(&SeekerKind::SemiActiveRadar) { return false };
+      // Active Radar, Semi-Active Radar, and Home-On-Jam are not allowed to be validators
+      if validating_seekers.contains(&SeekerKind::ActiveRadar) { return false };
+      if validating_seekers.contains(&SeekerKind::SemiActiveRadar) { return false };
+      if validating_seekers.contains(&SeekerKind::HomeOnJam) { return false };
+      // The targeting seeker should not have an attached validating seeker of the same type
+      if validating_seekers.contains(&seeker) { return false };
       // Filter out redundant combinations (duplicate validating seekers)
       if has_redundancy(validating_seekers) { return false };
-
-      i += 1;
     };
 
     // Filter out redundant combinations (duplicate targeting seekers)
     if has_redundancy(&targeting_seekers) { return false };
 
-    false
+    true
   }
 
-  pub fn iter(&self) -> SeekerStrategyIter {
-    std::iter::once((self.primary, SeekerMode::Targeting)).chain(self.secondaries.iter().copied())
+  pub fn is_defeated_by(&self, countermeasures: CountermeasuresMask) -> bool {
+    let jamming = countermeasures.mask_category(CountermeasureCategory::Jamming);
+
+    let mut buffer = Vec::new();
+    let mut iter = self.iter().peekable();
+    while let Some((seeker, validating_seekers)) = next_seeker_layer(&mut iter, &mut buffer) {
+      if let Some(defeating_countermeasures) = seeker.get_defeating_countermeasures(countermeasures) {
+        // The seeker has been defeated by jamming or concealment, fall back to the next seeker
+        if defeating_countermeasures.mask_category_inv(CountermeasureCategory::Decoy).any() { continue };
+
+        // Validating seekers must invalidate all decoys, otherwise the seeker remains decoyed
+        let mut decoys = defeating_countermeasures.mask_category(CountermeasureCategory::Decoy);
+        for &validating_seeker in validating_seekers {
+          // If the seeker is jammed, it cannot validate
+          if validating_seeker.is_defeated_by(jamming) { continue };
+          decoys &= validating_seeker.defeating_countermeasures_mask();
+        };
+
+        return decoys.any();
+      } else {
+        // The missile is not defeated
+        return false;
+      };
+    };
+
+    // There are no more targeting seekers, the missile is defeated
+    true
   }
 
-  pub fn possibilities1() -> impl Iterator<Item = Self> {
-    SeekerKind::values().map(|primary| SeekerStrategy2 { primary, secondaries: Box::new([]) })
-  }
+  pub fn get_countermeasure_methods(&self) -> Box<[CountermeasuresMask]> {
+    fn is_subset_of(sup: CountermeasuresMask, sub: CountermeasuresMask) -> bool {
+      (sup != sub) && (sup & sub == sub)
+    }
 
-  pub fn possibilities2() -> impl Iterator<Item = Self> {
-    let modes = [SeekerMode::Targeting, SeekerMode::Validation];
-    SeekerKind::values()
-      .cartesian_product(SeekerKind::values().cartesian_product(modes))
-      .map(|(primary, secondary)| SeekerStrategy2 { primary, secondaries: Box::new([secondary]) })
+    let mut list = Vec::new();
+    for countermeasures in CountermeasuresMask::values_ordered() {
+      if list.iter().rev().any(|&sub| is_subset_of(countermeasures, sub)) { continue };
+      if self.is_defeated_by(countermeasures) {
+        list.push(countermeasures);
+      };
+    };
+
+    list.into_boxed_slice()
   }
 }
 
-impl fmt::Display for SeekerStrategy2 {
+impl SeekerStrategy {
+  pub fn min_cost(&self) -> f32 {
+    self.iter().map(|(seeker, mode)| seeker.min_cost()[mode]).sum::<f32>()
+  }
+
+  pub fn max_cost(&self) -> f32 {
+    self.iter().map(|(seeker, mode)| seeker.max_cost()[mode]).sum::<f32>()
+  }
+
+  pub fn to_full(&self) -> Vec<SeekerStrategyFull> {
+    let primary = self.primary.iter_seeker_keys();
+    let secondaries = self.secondaries.iter()
+      .map(|&(seeker, mode)| seeker.iter_seeker_keys().map(move |s| (s, mode)))
+      .multi_cartesian_product();
+    primary.cartesian_product(secondaries)
+      .map(|(primary, secondaries)| SeekerStrategy::new(primary, secondaries))
+      .collect::<Vec<SeekerStrategyFull>>()
+  }
+
+  pub fn possibilities() -> impl Iterator<Item = Self> + Clone {
+    Self::possibilities1().chain(Self::possibilities2()).chain(Self::possibilities3())
+  }
+
+  pub fn possibilities1() -> impl Iterator<Item = Self> + Clone {
+    SeekerKind::values().map(|primary| SeekerStrategy { primary, secondaries: Box::new([]) })
+  }
+
+  pub fn possibilities2() -> impl Iterator<Item = Self> + Clone {
+    let modes = [SeekerMode::Targeting, SeekerMode::Validation];
+    SeekerKind::values()
+      .cartesian_product(SeekerKind::values().cartesian_product(modes))
+      .map(|(primary, secondary)| SeekerStrategy::new(primary, [secondary]))
+  }
+
+  pub fn possibilities3() -> impl Iterator<Item = Self> + Clone {
+    let modes = [SeekerMode::Targeting, SeekerMode::Validation];
+    SeekerKind::values()
+      .cartesian_product(SeekerKind::values().cartesian_product(modes).clone())
+      .cartesian_product(SeekerKind::values().cartesian_product(modes))
+      .map(|((primary, secondary), tertiary)| SeekerStrategy::new(primary, [secondary, tertiary]))
+  }
+}
+
+impl SeekerStrategyFull {
+  pub fn cost(&self) -> f32 {
+    self.iter().map(|(seeker, mode)| seeker.cost()[mode]).sum::<f32>()
+  }
+}
+
+impl fmt::Display for SeekerStrategy {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     fmt::Display::fmt(&self.primary, f)?;
     for &(seeker, mode) in self.secondaries.iter() {
@@ -347,282 +489,76 @@ impl fmt::Display for SeekerStrategy2 {
   }
 }
 
-pub type SeekerStrategyIter<'a> = std::iter::Chain<
-  std::iter::Once<(SeekerKind, SeekerMode)>,
-  std::iter::Copied<std::slice::Iter<'a, (SeekerKind, SeekerMode)>>
+pub type SeekerStrategyIter<'a, S = SeekerKind> = std::iter::Chain<
+  std::iter::Once<(S, SeekerMode)>,
+  std::iter::Copied<std::slice::Iter<'a, (S, SeekerMode)>>
 >;
 
-fn next_seeker_layer<'a, 'b>(
-  iter: &mut std::iter::Peekable<SeekerStrategyIter<'a>>,
+fn next_seeker_layer<'a, 'b, S: Copy + Into<SeekerKind>>(
+  iter: &mut std::iter::Peekable<SeekerStrategyIter<'a, S>>,
   buffer: &'b mut Vec<SeekerKind>
 ) -> Option<(SeekerKind, &'b [SeekerKind])> {
   buffer.clear();
   let (seeker, mode) = iter.next()?;
   debug_assert_eq!(mode, SeekerMode::Targeting);
   while let Some((seeker, SeekerMode::Validation)) = iter.peek().copied() {
-    buffer.push(seeker);
+    buffer.push(seeker.into());
     iter.next();
   };
 
-  Some((seeker, buffer.as_slice()))
+  Some((seeker.into(), buffer.as_slice()))
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct SeekerStrategy {
-  pub primary: SeekerKind,
-  pub secondary: Option<(SeekerKind, SeekerMode)>,
-  /// A list of ways this seeker configuration can be defeated.
-  pub defeated_by: &'static [&'static [Countermeasure]]
+fn has_redundancy(seekers: &[SeekerKind]) -> bool {
+  let mut unique = std::collections::HashSet::new();
+  !seekers.iter().all(|&seeker| unique.insert(seeker)) ||
+  (unique.contains(&SeekerKind::ActiveRadar) && unique.contains(&SeekerKind::SemiActiveRadar)) ||
+  (unique.contains(&SeekerKind::AntiRadiation) && unique.contains(&SeekerKind::HomeOnJam))
 }
 
-impl SeekerStrategy {
-  pub const fn new_single(
-    seeker: SeekerKind,
-    defeated_by: &'static [&'static [Countermeasure]]
-  ) -> Self {
-    SeekerStrategy { primary: seeker, secondary: None, defeated_by }
+#[derive(Debug, Clone)]
+pub struct SeekerStrategyEntry {
+  pub seeker_strategy: SeekerStrategy,
+  pub countermeasure_methods: Box<[CountermeasuresMask]>
+}
+
+impl SeekerStrategyEntry {
+  pub fn new(seeker_strategy: SeekerStrategy) -> Self {
+    let countermeasure_methods = seeker_strategy.get_countermeasure_methods();
+    SeekerStrategyEntry { seeker_strategy, countermeasure_methods }
   }
 
-  pub const fn new_double(
-    primary: SeekerKind, secondary: SeekerKind, mode: SeekerMode,
-    defeated_by: &'static [&'static [Countermeasure]]
-  ) -> Self {
-    SeekerStrategy { primary, secondary: Some((secondary, mode)), defeated_by }
-  }
-
-  pub fn layouts(self) -> Vec<SeekerLayout> {
-    if let Some((secondary, mode)) = self.secondary {
-      self.primary.seeker_keys().iter()
-        .flat_map(move |&primary| {
-          secondary.seeker_keys().iter().map(move |&secondary| {
-            SeekerLayout { primary, secondary: Some((secondary, mode)) }
-          })
-        })
-        .collect()
-    } else {
-      self.primary.seeker_keys().iter()
-        .map(move |&primary| SeekerLayout { primary, secondary: None })
-        .collect()
-    }
-  }
-
-  /// The probability that, based on the provided [`CountermeasureProbabilities`],
-  /// this seeker configuration can be defeated by countermeasures fielded by a hypothetical opponent.
-  pub fn defeat_probability(self, probabilities: CountermeasureProbabilities) -> f32 {
-    let probabilities = self.defeated_by.iter()
-      .map(|&d| d.iter().map(|&cm| probabilities[cm]).product::<f32>())
+  pub fn get_defeat_probability(&self, probabilities: CountermeasureProbabilities) -> f32 {
+    if self.countermeasure_methods.is_empty() { return 0.0 };
+    let probabilities = self.countermeasure_methods.iter()
+      .map(|mask| mask.iter_filtered().map(|cm| probabilities[cm]).product::<f32>())
       .collect::<Vec<f32>>();
     crate::utils::probability_any(&probabilities)
   }
 
-  /// Defines a list of 'reasonable' seeker configurations that the generator may pick from.
-  /// Some configurations are intentionally excluded from this list:
-  /// - `CMD` is never allowed to have validators because `CMD` is already the most exact (in target discrimination).
-  /// - `EO` is not allowed to have validators (except for `CMD` validator) for similar reasons.
-  /// - `CMD` is never allowed to be a backup seeker because it would *always* be better served as the primary seeker.
-  /// - `WAKE` is not allowed to have backups or validators because that seeker would *always* be better served as the primary.
-  /// - `ACT(RADAR)` and `SAH(RADAR)` are not allowed to be validators because they are broad and will rarely actually filter things out.
-  /// - `HOJ` is not allowed to be a primary or a validator because such use cases are either too niche or inferior to `ARAD` in its place.
-  /// - Redundant combinations like `ACT(RADAR)/SAH(RADAR)` combinations are not allowed for obvious reasons.
-  ///
-  /// Other combinations are probably generally bad ideas or have too niche of applications,
-  /// but are likely to be filtered out by the generator due to cost considerations.
-  ///
-  /// Additionally, this all works under the assumption that Reject Unvalidated Targets is never used.
-  pub const VALUES: &'static [Self] = {
-    use Countermeasure::*;
-    use SeekerMode::{Targeting as BKP, Validation as VAL};
-    use SeekerKind::{
-      Command as CMD,
-      ActiveRadar as ACT, SemiActiveRadar as SAH,
-      AntiRadiation as ARAD, HomeOnJam as HOJ,
-      ElectroOptical as EO, WakeHoming as WAKE
-    };
+  pub fn get_defeat_probability_default(&self) -> f32 {
+    self.get_defeat_probability(COUNTERMEASURE_PROBABILITIES)
+  }
 
-    &[
-      Self::new_single(CMD, &[
-        &[CommsJamming]
-      ]),
-      Self::new_double(CMD, ACT, BKP, &[
-        &[CommsJamming, RadarJamming],
-        &[CommsJamming, ChaffDecoy],
-        &[CommsJamming, ActiveDecoy]
-      ]),
-      Self::new_double(CMD, SAH, BKP, &[
-        &[CommsJamming, RadarJamming],
-        &[CommsJamming, ChaffDecoy],
-        &[CommsJamming, ActiveDecoy]
-      ]),
-      Self::new_double(CMD, ARAD, BKP, &[
-        &[CommsJamming, CutRadar],
-        &[CommsJamming, ActiveDecoy]
-      ]),
-      Self::new_double(CMD, EO, BKP, &[
-        &[CommsJamming, LaserDazzler]
-      ]),
-      Self::new_double(CMD, WAKE, BKP, &[
-        &[CommsJamming, FlareDecoy]
-      ]),
-      Self::new_single(ACT, &[
-        &[RadarJamming],
-        &[ChaffDecoy],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(ACT, CMD, VAL, &[
-        &[RadarJamming],
-        &[ChaffDecoy, CommsJamming],
-        &[ActiveDecoy, CommsJamming]
-      ]),
-      Self::new_double(ACT, ARAD, BKP, &[
-        &[ChaffDecoy],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(ACT, ARAD, VAL, &[
-        &[RadarJamming],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(ACT, HOJ, BKP, &[
-        &[ChaffDecoy],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(ACT, EO, BKP, &[
-        &[RadarJamming, LaserDazzler],
-        &[ChaffDecoy],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(ACT, EO, VAL, &[
-        &[RadarJamming],
-        &[ChaffDecoy, LaserDazzler],
-        &[ActiveDecoy, LaserDazzler]
-      ]),
-      Self::new_double(ACT, WAKE, BKP, &[
-        &[RadarJamming, FlareDecoy],
-        &[RadarJamming, CutEngines],
-        &[ChaffDecoy, FlareDecoy],
-        &[ChaffDecoy, CutEngines],
-        &[ActiveDecoy, FlareDecoy],
-        &[ActiveDecoy, CutEngines]
-      ]),
-      Self::new_double(ACT, WAKE, VAL, &[
-        &[RadarJamming]
-      ]),
-      Self::new_single(SAH, &[
-        &[RadarJamming],
-        &[ChaffDecoy],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(SAH, CMD, VAL, &[
-        &[RadarJamming, CommsJamming],
-        &[ChaffDecoy, CommsJamming],
-        &[ActiveDecoy, CommsJamming]
-      ]),
-      Self::new_double(SAH, ARAD, BKP, &[
-        &[ChaffDecoy],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(SAH, ARAD, VAL, &[
-        &[RadarJamming],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(SAH, HOJ, BKP, &[
-        &[ChaffDecoy],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(SAH, EO, BKP, &[
-        &[RadarJamming, LaserDazzler],
-        &[ChaffDecoy],
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(SAH, EO, VAL, &[
-        &[RadarJamming],
-        &[ChaffDecoy, LaserDazzler],
-        &[ActiveDecoy, LaserDazzler]
-      ]),
-      Self::new_double(SAH, WAKE, BKP, &[
-        &[RadarJamming, FlareDecoy],
-        &[RadarJamming, CutEngines],
-        &[ChaffDecoy, FlareDecoy],
-        &[ChaffDecoy, CutEngines],
-        &[ActiveDecoy, FlareDecoy],
-        &[ActiveDecoy, CutEngines]
-      ]),
-      Self::new_double(SAH, WAKE, VAL, &[
-        &[RadarJamming]
-      ]),
-      Self::new_single(ARAD, &[
-        &[ActiveDecoy],
-        &[CutRadar]
-      ]),
-      Self::new_double(ARAD, CMD, VAL, &[
-        &[ActiveDecoy, CommsJamming],
-        &[CutRadar, CommsJamming]
-      ]),
-      Self::new_double(ARAD, ACT, BKP, &[
-        &[ActiveDecoy],
-        &[CutRadar, ChaffDecoy]
-      ]),
-      Self::new_double(ARAD, SAH, BKP, &[
-        &[ActiveDecoy],
-        &[CutRadar, ChaffDecoy]
-      ]),
-      Self::new_double(ARAD, EO, BKP, &[
-        &[ActiveDecoy]
-      ]),
-      Self::new_double(ARAD, EO, VAL, &[
-        &[ActiveDecoy, LaserDazzler],
-        &[CutRadar, LaserDazzler]
-      ]),
-      Self::new_double(ARAD, WAKE, BKP, &[
-        &[ActiveDecoy],
-        &[CutRadar, CutEngines]
-      ]),
-      Self::new_double(ARAD, WAKE, VAL, &[
-        &[CutRadar, CutEngines]
-      ]),
-      Self::new_single(EO, &[
-        &[LaserDazzler]
-      ]),
-      Self::new_double(EO, CMD, VAL, &[
-        &[LaserDazzler]
-      ]),
-      Self::new_double(EO, ACT, BKP, &[
-        &[LaserDazzler, RadarJamming],
-        &[LaserDazzler, ChaffDecoy],
-        &[LaserDazzler, ActiveDecoy]
-      ]),
-      Self::new_double(EO, SAH, BKP, &[
-        &[LaserDazzler, RadarJamming],
-        &[LaserDazzler, ChaffDecoy],
-        &[LaserDazzler, ActiveDecoy]
-      ]),
-      Self::new_double(EO, ARAD, BKP, &[
-        &[LaserDazzler, ActiveDecoy],
-        &[LaserDazzler, CutRadar]
-      ]),
-      Self::new_double(EO, WAKE, BKP, &[
-        &[LaserDazzler, FlareDecoy],
-        &[LaserDazzler, CutEngines]
-      ]),
-      Self::new_single(WAKE, &[
-        &[FlareDecoy],
-        &[CutEngines]
-      ])
-    ]
-  };
-}
+  pub fn get_defeat_probability_default_no_ewar(&self) -> f32 {
+    self.get_defeat_probability(COUNTERMEASURE_PROBABILITIES_NO_EWAR)
+  }
 
-impl fmt::Display for SeekerStrategy {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self.secondary {
-      Some((secondary, SeekerMode::Targeting)) => write!(f, "{}/{}", self.primary, secondary),
-      Some((secondary, SeekerMode::Validation)) => write!(f, "{}/[{}]", self.primary, secondary),
-      None => write!(f, "{}", self.primary)
-    }
+  pub fn get_entries() -> Box<[Self]> {
+    SeekerStrategy::possibilities()
+      .filter(SeekerStrategy::is_reasonable)
+      .map(SeekerStrategyEntry::new)
+      .collect()
+  }
+
+  pub fn get_entries_cached() -> &'static [Self] {
+    static LOCK: OnceLock<Box<[SeekerStrategyEntry]>> = OnceLock::new();
+    LOCK.get_or_init(SeekerStrategyEntry::get_entries)
   }
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 pub enum Countermeasure {
   RadarJamming,
   CommsJamming,
@@ -655,6 +591,11 @@ impl Countermeasure {
       Self::CutEngines | Self::CutRadar => todo!()
     }
   }
+
+  #[inline]
+  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
+    crate::utils::ContiguousEnumValues::new()
+  }
 }
 
 impl fmt::Display for Countermeasure {
@@ -677,33 +618,47 @@ pub enum CountermeasureCategory {
   Concealment
 }
 
-/// Defines the likelyhood of any given countermeasure's employment within the battlespace
-/// for use by the generator in weighing a seeker strategy's resistance to said countermeasures.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CountermeasureProbabilities {
-  /// RADAR jamming, such as from the 'Blanket' jammer.
-  pub radar_jamming: f32,
-  /// COMMS jamming, such as from the 'Hangup' jammer.
-  pub comms_jamming: f32,
-  /// Electro-Optical seeker jamming, such as from the 'Blackjack' laser dazzler.
-  pub laser_dazzler: f32,
-  /// Chaff decoys.
-  pub chaff_decoy: f32,
-  /// Flare decoys.
-  pub flare_decoy: f32,
-  /// Active decoys, only available to ANS.
-  pub active_decoy: f32,
-  /// Ship has disabled/cut its thrusters.
-  /// This includes ships that are immobilized from damage.
-  pub cut_engines: f32,
-  /// Ship has disabled all radar emissions.
-  pub cut_radar: f32
+impl CountermeasureCategory {
+  pub const fn mask(self) -> CountermeasuresMask {
+    match self {
+      Self::Decoy => CountermeasuresMask::ONLY_DECOY,
+      Self::Jamming => CountermeasuresMask::ONLY_JAMMING,
+      Self::Concealment => CountermeasuresMask::ONLY_CONCEALMENT
+    }
+  }
 }
 
-impl Index<Countermeasure> for CountermeasureProbabilities {
-  type Output = f32;
+/// Defines a mask/list of countermeasures that are currently employed.
+pub type CountermeasuresMask = CountermeasureMatrix<bool>;
 
-  fn index(&self, cm: Countermeasure) -> &Self::Output {
+/// Defines the likelyhood of any given countermeasure's employment within the battlespace
+/// for use by the generator in weighing a seeker strategy's resistance to said countermeasures.
+pub type CountermeasureProbabilities = CountermeasureMatrix<f32>;
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CountermeasureMatrix<T> {
+  /// Radar jamming, such as from the 'Blanket' jammer.
+  pub radar_jamming: T,
+  /// Comms jamming, such as from the 'Hangup' jammer.
+  pub comms_jamming: T,
+  /// Electro-Optical seeker jamming, such as from the 'Blackjack' laser dazzler.
+  pub laser_dazzler: T,
+  /// Chaff decoys.
+  pub chaff_decoy: T,
+  /// Flare decoys.
+  pub flare_decoy: T,
+  /// Active decoys, only available to ANS.
+  pub active_decoy: T,
+  /// Ship has disabling/cutting its thrusters.
+  /// This includes ships that are immobilized from damage.
+  pub cut_engines: T,
+  /// Ship has disabling all radar emissions.
+  pub cut_radar: T
+}
+
+impl<T> CountermeasureMatrix<T> {
+  pub const fn get(&self, cm: Countermeasure) -> &T {
     match cm {
       Countermeasure::RadarJamming => &self.radar_jamming,
       Countermeasure::CommsJamming => &self.comms_jamming,
@@ -715,19 +670,287 @@ impl Index<Countermeasure> for CountermeasureProbabilities {
       Countermeasure::CutRadar => &self.cut_radar
     }
   }
-}
 
-impl Default for CountermeasureProbabilities {
-  fn default() -> Self {
-    CountermeasureProbabilities {
-      radar_jamming: 0.90,
-      comms_jamming: 0.80,
-      laser_dazzler: 0.05,
-      chaff_decoy: 0.95,
-      flare_decoy: 0.15,
-      active_decoy: 0.50,
-      cut_engines: 0.20,
-      cut_radar: 0.05
+  pub fn map<U, F: FnMut(T) -> U>(self, f: F) -> CountermeasureMatrix<U> {
+    CountermeasureMatrix::from_array(self.into_array().map(f))
+  }
+
+  pub fn map_with_tag<U, F: FnMut(Countermeasure, T) -> U>(self, mut f: F) -> CountermeasureMatrix<U> {
+    CountermeasureMatrix {
+      radar_jamming: f(Countermeasure::RadarJamming, self.radar_jamming),
+      comms_jamming: f(Countermeasure::CommsJamming, self.comms_jamming),
+      laser_dazzler: f(Countermeasure::LaserDazzler, self.laser_dazzler),
+      chaff_decoy: f(Countermeasure::ChaffDecoy, self.chaff_decoy),
+      flare_decoy: f(Countermeasure::FlareDecoy, self.flare_decoy),
+      active_decoy: f(Countermeasure::ActiveDecoy, self.active_decoy),
+      cut_engines: f(Countermeasure::CutEngines, self.cut_engines),
+      cut_radar: f(Countermeasure::CutRadar, self.cut_radar)
     }
   }
+
+  pub fn zip<U, V, F: FnMut(T, U) -> V>(self, other: CountermeasureMatrix<U>, mut f: F) -> CountermeasureMatrix<V> {
+    CountermeasureMatrix {
+      radar_jamming: f(self.radar_jamming, other.radar_jamming),
+      comms_jamming: f(self.comms_jamming, other.comms_jamming),
+      laser_dazzler: f(self.laser_dazzler, other.laser_dazzler),
+      chaff_decoy: f(self.chaff_decoy, other.chaff_decoy),
+      flare_decoy: f(self.flare_decoy, other.flare_decoy),
+      active_decoy: f(self.active_decoy, other.active_decoy),
+      cut_engines: f(self.cut_engines, other.cut_engines),
+      cut_radar: f(self.cut_radar, other.cut_radar)
+    }
+  }
+
+  #[inline]
+  pub const fn from_array(array: [T; COUNTERMEASURE_MATRIX_LEN]) -> Self {
+    // SAFETY: `CountermeasureMatrix` is repr(C), so has the same memory representation as `[T; 8]`
+    unsafe { union_cast!(array, CountermeasureMatrixCast, array, this) }
+  }
+
+  #[inline]
+  pub const fn from_array_ref(array: &[T; COUNTERMEASURE_MATRIX_LEN]) -> &Self {
+    // SAFETY: `CountermeasureMatrix` is repr(C), so has the same memory representation as `[T; 8]`
+    unsafe { crate::utils::cast_ref(array) }
+  }
+
+  #[inline]
+  pub fn from_array_ref_mut(array: &mut [T; COUNTERMEASURE_MATRIX_LEN]) -> &mut Self {
+    // SAFETY: `CountermeasureMatrix` is repr(C), so has the same memory representation as `[T; 8]`
+    unsafe { crate::utils::cast_ref_mut(array) }
+  }
+
+  #[inline]
+  pub const fn into_array(self) -> [T; COUNTERMEASURE_MATRIX_LEN] {
+    // SAFETY: `CountermeasureMatrix` is repr(C), so has the same memory representation as `[T; 8]`
+    unsafe { union_cast!(self, CountermeasureMatrixCast, this, array) }
+  }
+
+  #[inline]
+  pub const fn as_array_ref(&self) -> &[T; COUNTERMEASURE_MATRIX_LEN] {
+    // SAFETY: `CountermeasureMatrix` is repr(C), so has the same memory representation as `[T; 8]`
+    unsafe { crate::utils::cast_ref(self) }
+  }
+
+  #[inline]
+  pub fn as_array_ref_mut(&mut self) -> &mut [T; COUNTERMEASURE_MATRIX_LEN] {
+    // SAFETY: `CountermeasureMatrix` is repr(C), so has the same memory representation as `[T; 8]`
+    unsafe { crate::utils::cast_ref_mut(self) }
+  }
+}
+
+macro_rules! const_binop {
+  ($a:expr, $b:expr, $op:tt) => ({
+    let a = $a.into_array();
+    let b = $b.into_array();
+    let mut out = [false; COUNTERMEASURE_MATRIX_LEN];
+    let mut i = 0;
+    while i < COUNTERMEASURE_MATRIX_LEN {
+      out[i] = a[i] & b[i];
+      i += 1;
+    };
+
+    CountermeasuresMask::from_array(out)
+  });
+}
+
+impl CountermeasuresMask {
+  pub const ALL: Self = CountermeasureMatrix::from_array([true; COUNTERMEASURE_MATRIX_LEN]);
+  pub const NONE: Self = CountermeasureMatrix::from_array([false; COUNTERMEASURE_MATRIX_LEN]);
+
+  pub const ONLY_DECOY: Self = Self { chaff_decoy: true, flare_decoy: true, active_decoy: true, ..Self::NONE };
+  pub const ONLY_JAMMING: Self = Self { radar_jamming: true, comms_jamming: true, laser_dazzler: true, ..Self::NONE };
+  pub const ONLY_CONCEALMENT: Self = Self { cut_engines: true, cut_radar: true, ..Self::NONE };
+
+  pub const fn any(self) -> bool {
+    !self.none()
+  }
+
+  pub const fn all(self) -> bool {
+    matches!(self, Self::ALL)
+  }
+
+  pub const fn none(self) -> bool {
+    matches!(self, Self::NONE)
+  }
+
+  pub const fn and(self, other: Self) -> Self {
+    const_binop!(self, other, &)
+  }
+
+  pub const fn or(self, other: Self) -> Self {
+    const_binop!(self, other, |)
+  }
+
+  pub const fn xor(self, other: Self) -> Self {
+    const_binop!(self, other, ^)
+  }
+
+  pub const fn not(self) -> Self {
+    let mut out = self.into_array();
+    let mut i = 0;
+    while i < COUNTERMEASURE_MATRIX_LEN {
+      out[i] = !out[i];
+      i += 1;
+    };
+
+    Self::from_array(out)
+  }
+
+  pub const fn count_trues(self) -> usize {
+    let array = self.into_array();
+    let mut count = 0;
+    let mut i = 0;
+    while i < COUNTERMEASURE_MATRIX_LEN {
+      if array[i] { count += 1 };
+      i += 1;
+    };
+
+    count
+  }
+
+  pub const fn count_falses(self) -> usize {
+    let array = self.into_array();
+    let mut count = 0;
+    let mut i = 0;
+    while i < COUNTERMEASURE_MATRIX_LEN {
+      if !array[i] { count += 1 };
+      i += 1;
+    };
+
+    count
+  }
+
+  #[inline]
+  pub const fn from_num(num: u32) -> Self {
+    Self::from_array(crate::utils::bool_array_from_num(num))
+  }
+
+  #[inline]
+  pub const fn to_num(self) -> u32 {
+    crate::utils::bool_array_to_num(self.into_array())
+  }
+
+  pub const fn mask_category(self, category: CountermeasureCategory) -> Self {
+    self.and(category.mask())
+  }
+
+  pub const fn mask_category_inv(self, category: CountermeasureCategory) -> Self {
+    self.and(category.mask().not())
+  }
+
+  pub fn iter_filtered(self) -> impl Iterator<Item = Countermeasure> + DoubleEndedIterator + Clone {
+    Countermeasure::values().filter(move |&cm| self[cm])
+  }
+
+  pub fn values() -> impl Iterator<Item = Self> + DoubleEndedIterator + Clone {
+    const MAX: u32 = CountermeasuresMask::ALL.to_num();
+    (0..=MAX).map(Self::from_num)
+  }
+
+  pub fn values_ordered() -> impl Iterator<Item = Self> + Clone {
+    crate::utils::combination_iter::<{COUNTERMEASURE_MATRIX_LEN as u32}>()
+      .map(|num| Self::from_num(num.get()))
+  }
+}
+
+impl fmt::Display for CountermeasuresMask {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    for (i, cm) in self.iter_filtered().enumerate() {
+      if i != 0 { f.write_str(" + ")? };
+      f.write_str(cm.to_str())?;
+    };
+
+    Ok(())
+  }
+}
+
+impl<T> Index<Countermeasure> for CountermeasureMatrix<T> {
+  type Output = T;
+
+  fn index(&self, cm: Countermeasure) -> &Self::Output {
+    self.get(cm)
+  }
+}
+
+impl<T> IntoIterator for CountermeasureMatrix<T> {
+  type IntoIter = <[T; COUNTERMEASURE_MATRIX_LEN] as IntoIterator>::IntoIter;
+  type Item = T;
+
+  fn into_iter(self) -> Self::IntoIter {
+    self.into_array().into_iter()
+  }
+}
+
+impl<'a, T> IntoIterator for &'a CountermeasureMatrix<T> {
+  type IntoIter = <&'a [T; COUNTERMEASURE_MATRIX_LEN] as IntoIterator>::IntoIter;
+  type Item = &'a T;
+
+  fn into_iter(self) -> Self::IntoIter {
+    self.as_array_ref().into_iter()
+  }
+}
+
+impl<'a, T> IntoIterator for &'a mut CountermeasureMatrix<T> {
+  type IntoIter = <&'a mut [T; COUNTERMEASURE_MATRIX_LEN] as IntoIterator>::IntoIter;
+  type Item = &'a mut T;
+
+  fn into_iter(self) -> Self::IntoIter {
+    self.as_array_ref_mut().into_iter()
+  }
+}
+
+macro_rules! impl_bit_binop {
+  ($Trait:ident, $function:ident, $TraitAssign:ident, $function_assign:ident) => {
+    impl<T, Rhs> $Trait<CountermeasureMatrix<Rhs>> for CountermeasureMatrix<T> where T: $Trait<Rhs> {
+      type Output = CountermeasureMatrix<T::Output>;
+
+      fn $function(self, rhs: CountermeasureMatrix<Rhs>) -> Self::Output {
+        self.zip(rhs, T::$function)
+      }
+    }
+
+    impl<T, Rhs> $TraitAssign<CountermeasureMatrix<Rhs>> for CountermeasureMatrix<T> where T: $TraitAssign<Rhs> {
+      fn $function_assign(&mut self, rhs: CountermeasureMatrix<Rhs>) {
+        for (lhs, rhs) in self.into_iter().zip(rhs) {
+          T::$function_assign(lhs, rhs);
+        };
+      }
+    }
+  };
+}
+
+impl_bit_binop!(BitAnd, bitand, BitAndAssign, bitand_assign);
+impl_bit_binop!(BitOr, bitor, BitOrAssign, bitor_assign);
+impl_bit_binop!(BitXor, bitxor, BitXorAssign, bitxor_assign);
+
+impl<T> Not for CountermeasureMatrix<T> where T: Not {
+  type Output = CountermeasureMatrix<T::Output>;
+
+  fn not(self) -> Self::Output {
+    self.map(T::not)
+  }
+}
+
+pub const COUNTERMEASURE_PROBABILITIES_NO_EWAR: CountermeasureProbabilities = {
+  CountermeasureMatrix { radar_jamming: 0.0, comms_jamming: 0.0, ..COUNTERMEASURE_PROBABILITIES }
+};
+
+pub const COUNTERMEASURE_PROBABILITIES: CountermeasureProbabilities = {
+  CountermeasureMatrix {
+    radar_jamming: 0.90,
+    comms_jamming: 0.80,
+    laser_dazzler: 0.05,
+    chaff_decoy: 0.95,
+    flare_decoy: 0.15,
+    active_decoy: 0.50,
+    cut_engines: 0.20,
+    cut_radar: 0.05
+  }
+};
+
+const COUNTERMEASURE_MATRIX_LEN: usize = std::mem::size_of::<CountermeasureMatrix<u8>>();
+
+union CountermeasureMatrixCast<T> {
+  this: std::mem::ManuallyDrop<CountermeasureMatrix<T>>,
+  array: std::mem::ManuallyDrop<[T; COUNTERMEASURE_MATRIX_LEN]>
 }
