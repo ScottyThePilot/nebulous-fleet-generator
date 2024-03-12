@@ -1032,11 +1032,6 @@ impl MissileComponentKey {
       Self::BlastFragmentationEL => "Stock/Blast Fragmentation EL",
     }
   }
-
-  #[inline]
-  pub fn values() -> crate::utils::ContiguousEnumValues<Self> {
-    crate::utils::ContiguousEnumValues::new()
-  }
 }
 
 impl FromStr for MissileComponentKey {

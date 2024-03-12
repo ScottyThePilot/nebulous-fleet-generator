@@ -7,20 +7,30 @@ use std::ops::RangeInclusive;
 
 
 
+pub trait ContiguousExt: Contiguous {
+  #[inline]
+  fn values() -> ContiguousValues<Self> {
+    ContiguousValues::new()
+  }
+}
+
+impl<T> ContiguousExt for T where T: Contiguous {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContiguousEnumValues<T: Contiguous> {
+pub struct ContiguousValues<T: Contiguous> {
   inner: RangeInclusive<T::Int>
 }
 
-impl<T: Contiguous> ContiguousEnumValues<T> {
+impl<T: Contiguous> ContiguousValues<T> {
+  #[inline]
   pub const fn new() -> Self {
-    ContiguousEnumValues {
+    ContiguousValues {
       inner: T::MIN_VALUE..=T::MAX_VALUE
     }
   }
 }
 
-impl<T> Iterator for ContiguousEnumValues<T>
+impl<T> Iterator for ContiguousValues<T>
 where T: Contiguous, RangeInclusive<T::Int>: Iterator<Item = T::Int> {
   type Item = T;
 
@@ -42,7 +52,7 @@ where T: Contiguous, RangeInclusive<T::Int>: Iterator<Item = T::Int> {
   }
 }
 
-impl<T> DoubleEndedIterator for ContiguousEnumValues<T>
+impl<T> DoubleEndedIterator for ContiguousValues<T>
 where T: Contiguous, RangeInclusive<T::Int>: DoubleEndedIterator<Item = T::Int> {
   fn next_back(&mut self) -> Option<Self::Item> {
     self.inner.next_back().map(|int| T::from_integer(int).unwrap())
@@ -54,7 +64,7 @@ where T: Contiguous, RangeInclusive<T::Int>: DoubleEndedIterator<Item = T::Int> 
   }
 }
 
-impl<T> ExactSizeIterator for ContiguousEnumValues<T>
+impl<T> ExactSizeIterator for ContiguousValues<T>
 where T: Contiguous, RangeInclusive<T::Int>: ExactSizeIterator<Item = T::Int> {
   fn len(&self) -> usize {
     self.inner.len()

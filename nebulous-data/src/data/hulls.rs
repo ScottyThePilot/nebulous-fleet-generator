@@ -1,6 +1,6 @@
 use super::components::ComponentKind;
 use super::{Buff, Direction, Faction};
-use crate::utils::Size;
+use crate::utils::{ContiguousExt, Size};
 
 use bytemuck::Contiguous;
 
@@ -102,11 +102,6 @@ impl HullKey {
       Self::BulkFreighterLineShip => &BULK_FREIGHTER_LINE_SHIP,
       Self::ContainerLinerLineShip => &CONTAINER_LINER_LINE_SHIP
     }
-  }
-
-  #[inline]
-  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
-    crate::utils::ContiguousEnumValues::new()
   }
 }
 

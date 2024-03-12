@@ -2,6 +2,7 @@ use nebulous_data::data::Faction;
 use nebulous_data::data::hulls::HullKey;
 use nebulous_data::data::components::ComponentKey;
 use nebulous_data::data::munitions::MunitionKey;
+use nebulous_data::prelude::*;
 
 use crate::parameters::*;
 

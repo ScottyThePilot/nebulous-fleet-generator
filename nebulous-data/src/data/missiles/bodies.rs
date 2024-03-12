@@ -1,5 +1,6 @@
-use crate::data::Faction;
 use super::engines::Engine;
+use crate::data::Faction;
+use crate::utils::ContiguousExt;
 
 use bytemuck::Contiguous;
 
@@ -108,11 +109,6 @@ impl MissileBodyKey {
       Self::CM4Container => &CM4_CONTAINER,
       Self::CMS4Container => &CMS4_CONTAINER
     }
-  }
-
-  #[inline]
-  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
-    crate::utils::ContiguousEnumValues::new()
   }
 }
 

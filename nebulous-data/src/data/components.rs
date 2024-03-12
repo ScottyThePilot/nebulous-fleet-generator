@@ -1,7 +1,7 @@
 use super::hulls::HullKey;
 use super::munitions::{MunitionFamily, WeaponRole};
 use super::{Buff, Faction, MissileSize};
-use crate::utils::Size;
+use crate::utils::{ContiguousExt, Size};
 
 use bytemuck::Contiguous;
 
@@ -553,11 +553,6 @@ impl ComponentKey {
       Self::VLS2Launcher => &VLS2_LAUNCHER,
       Self::VLS3Launcher => &VLS3_LAUNCHER
     }
-  }
-
-  #[inline]
-  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
-    crate::utils::ContiguousEnumValues::new()
   }
 }
 

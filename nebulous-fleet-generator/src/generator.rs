@@ -1,7 +1,7 @@
 use float_ord::FloatOrd;
 use nebulous_data::data::Faction;
 use nebulous_data::data::hulls::HullKey;
-use nebulous_data::utils::lerp;
+use nebulous_data::prelude::*;
 use rand::Rng;
 use rand::seq::IteratorRandom;
 

@@ -16,3 +16,8 @@ pub mod data;
 pub mod format;
 
 pub use crate::utils::Size;
+
+pub mod prelude {
+  pub use bytemuck::Contiguous;
+  pub use crate::utils::{ContiguousExt, Lerp, lerp, lerp2};
+}

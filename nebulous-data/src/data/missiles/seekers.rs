@@ -1,12 +1,12 @@
-use std::fmt;
-use std::num::NonZeroUsize as zsize;
-use std::ops::Index;
-use std::str::FromStr;
+use crate::utils::ContiguousExt;
 
 use bytemuck::Contiguous;
 use itertools::Itertools;
 
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
+use std::fmt;
+use std::num::NonZeroUsize as zsize;
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Index, Not};
+use std::str::FromStr;
 use std::sync::OnceLock;
 
 
@@ -77,11 +77,6 @@ impl SeekerKey {
       Self::ElectroOptical => SeekerKind::ElectroOptical,
       Self::WakeHoming => SeekerKind::WakeHoming
     }
-  }
-
-  #[inline]
-  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
-    crate::utils::ContiguousEnumValues::new()
   }
 }
 
@@ -225,11 +220,6 @@ impl SeekerKind {
 
   pub fn iter_seeker_keys(self) -> std::iter::Copied<std::slice::Iter<'static, SeekerKey>> {
     self.seeker_keys().iter().copied()
-  }
-
-  #[inline]
-  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
-    crate::utils::ContiguousEnumValues::new()
   }
 }
 
@@ -590,11 +580,6 @@ impl Countermeasure {
       Self::ChaffDecoy | Self::FlareDecoy | Self::ActiveDecoy => CountermeasureCategory::Decoy,
       Self::CutEngines | Self::CutRadar => todo!()
     }
-  }
-
-  #[inline]
-  pub const fn values() -> crate::utils::ContiguousEnumValues<Self> {
-    crate::utils::ContiguousEnumValues::new()
   }
 }
 
