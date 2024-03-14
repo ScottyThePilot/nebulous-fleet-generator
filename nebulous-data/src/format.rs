@@ -1,3 +1,5 @@
+pub mod key;
+
 use crate::data::{Faction, MissileSize};
 use crate::data::hulls::HullKey;
 use crate::data::missiles::Maneuvers;
@@ -5,6 +7,7 @@ use crate::data::missiles::bodies::MissileBodyKey;
 use crate::data::missiles::seekers::SeekerMode;
 use crate::data::missiles::engines::EngineSettings;
 use crate::data::components::ComponentKey;
+use self::key::Key;
 
 use bytemuck::Contiguous;
 use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes, Attributes};
@@ -105,7 +108,7 @@ impl DeserializeElement for Fleet {
     let faction_key = faction_key.ok_or(xml::Error::missing_element("FactionKey"))?.children.deserialize::<Faction>()?;
     let description = description.map(|description| description.children.deserialize::<String>()).transpose()?.filter(|d| !d.is_empty());
     let ships = ships.ok_or(xml::Error::missing_element("Ships"))?.children.deserialize::<Vec<Ship>>()?;
-    let missile_types = missile_types.ok_or(xml::Error::missing_element("MissileTypes"))?.children.deserialize::<Vec<MissileTemplate>>()?;
+    let missile_types = missile_types.map(|missile_types| missile_types.children.deserialize::<Vec<MissileTemplate>>()).transpose()?.unwrap_or_else(Vec::new);
 
     Ok(Fleet { name, total_points, faction_key, description, ships, missile_types })
   }
@@ -198,7 +201,7 @@ impl SerializeElement for Ship {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HullSocket {
-  pub key: Box<str>,
+  pub key: Key,
   pub component_name: ComponentKey,
   pub component_data: Option<ComponentData>
 }
@@ -210,7 +213,7 @@ impl DeserializeElement for HullSocket {
     let [key, component_name, component_data] = element.children
       .find_elements(["Key", "ComponentName", "ComponentData"])?;
 
-    let key = key.ok_or(xml::Error::missing_element("Key"))?.children.deserialize::<String>()?.into_boxed_str();
+    let key = key.ok_or(xml::Error::missing_element("Key"))?.children.deserialize::<Key>()?;
     let component_name = component_name.ok_or(xml::Error::missing_element("ComponentName"))?.children.deserialize::<ComponentKey>()?;
     let component_data = component_data.map(Element::deserialize::<ComponentData>).transpose()?;
 
@@ -222,7 +225,7 @@ impl SerializeElement for HullSocket {
   type Error = Infallible;
 
   fn serialize_element(self) -> Result<Element, Self::Error> {
-    let key = Element::new("Key", Nodes::new_text(self.key));
+    let key = Element::new("Key", self.key.serialize_nodes()?);
     let component_name = Element::new("ComponentName", Nodes::new_text(self.component_name.save_key()));
     let component_data = self.component_data.map(ComponentData::serialize_element).transpose()?;
     let nodes = Nodes::from_iter(chain_iter!([key, component_name], component_data));
@@ -241,31 +244,37 @@ pub enum ComponentData {
   ResizableCellLauncherData {
     missile_load: Vec<MagazineSaveData>,
     configured_size: Vector2<usize>
+  },
+  DeceptionComponentData {
+    identity_option: usize
   }
 }
 
 impl ComponentData {
-  pub const fn get_load(&self) -> &Vec<MagazineSaveData> {
+  pub fn get_load(&self) -> Option<&[MagazineSaveData]> {
     match self {
-      ComponentData::BulkMagazineData { load } => load,
-      ComponentData::CellLauncherData { missile_load } => missile_load,
-      ComponentData::ResizableCellLauncherData { missile_load, .. } => missile_load
+      ComponentData::BulkMagazineData { load } => Some(load),
+      ComponentData::CellLauncherData { missile_load } => Some(missile_load),
+      ComponentData::ResizableCellLauncherData { missile_load, .. } => Some(missile_load),
+      ComponentData::DeceptionComponentData { .. } => None
     }
   }
 
-  pub fn get_load_mut(&mut self) -> &mut Vec<MagazineSaveData> {
+  pub fn get_load_mut(&mut self) -> Option<&mut Vec<MagazineSaveData>> {
     match self {
-      ComponentData::BulkMagazineData { load } => load,
-      ComponentData::CellLauncherData { missile_load } => missile_load,
-      ComponentData::ResizableCellLauncherData { missile_load, .. } => missile_load
+      ComponentData::BulkMagazineData { load } => Some(load),
+      ComponentData::CellLauncherData { missile_load } => Some(missile_load),
+      ComponentData::ResizableCellLauncherData { missile_load, .. } => Some(missile_load),
+      ComponentData::DeceptionComponentData { .. } => None
     }
   }
 
-  pub fn into_load(self) -> Vec<MagazineSaveData> {
+  pub fn into_load(self) -> Option<Vec<MagazineSaveData>> {
     match self {
-      ComponentData::BulkMagazineData { load } => load,
-      ComponentData::CellLauncherData { missile_load } => missile_load,
-      ComponentData::ResizableCellLauncherData { missile_load, .. } => missile_load
+      ComponentData::BulkMagazineData { load } => Some(load),
+      ComponentData::CellLauncherData { missile_load } => Some(missile_load),
+      ComponentData::ResizableCellLauncherData { missile_load, .. } => Some(missile_load),
+      ComponentData::DeceptionComponentData { .. } => None
     }
   }
 }
@@ -299,6 +308,12 @@ impl DeserializeElement for ComponentData {
           .children.deserialize::<Vector2<usize>>()?;
         Ok(ComponentData::ResizableCellLauncherData { missile_load, configured_size })
       },
+      "DeceptionComponentData" => {
+        let [identity_option] = element.children.find_elements(["IdentityOption"])?;
+        let identity_option = identity_option.ok_or(xml::Error::missing_element("IdentityOption"))?
+          .children.deserialize::<usize>()?;
+        Ok(ComponentData::DeceptionComponentData { identity_option })
+      },
       _ => Err(FormatError::UnknownComponentDataType(xsi_type.clone()))
     }
   }
@@ -319,6 +334,9 @@ impl SerializeElement for ComponentData {
         let missile_load = Element::new("MissileLoad", missile_load.serialize_nodes()?);
         let configured_size = Element::new("ConfiguredSize", configured_size.serialize_nodes()?);
         Nodes::from_iter([missile_load, configured_size])
+      }),
+      ComponentData::DeceptionComponentData { identity_option } => ("DeceptionComponentData", {
+        Nodes::new_one(Element::new("IdentityOption", identity_option.serialize_nodes()?))
       })
     };
 
@@ -328,7 +346,8 @@ impl SerializeElement for ComponentData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MagazineSaveData {
-  pub magazine_key: Box<str>,
+  pub magazine_key: Key,
+  // This is here rather than MunitionKey since these can reference custom missiles, which have unique names.
   pub munition_key: Box<str>,
   pub quantity: usize
 }
@@ -342,7 +361,7 @@ impl DeserializeElement for MagazineSaveData {
       .find_elements(["MagazineKey", "MunitionKey", "Quantity"])?;
 
     let magazine_key = magazine_key.ok_or(xml::Error::missing_element("MagazineKey"))?
-      .children.deserialize::<String>()?.into_boxed_str();
+      .children.deserialize::<Key>()?;
     let munition_key = munition_key.ok_or(xml::Error::missing_element("MunitionKey"))?
       .children.deserialize::<String>()?.into_boxed_str();
     let quantity = quantity.ok_or(xml::Error::missing_element("Quantity"))?
@@ -367,7 +386,7 @@ impl SerializeElement for MagazineSaveData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WeaponGroup {
   pub name: String,
-  pub members: Vec<Box<str>>
+  pub members: Vec<Key>
 }
 
 impl DeserializeElement for WeaponGroup {
@@ -381,7 +400,7 @@ impl DeserializeElement for WeaponGroup {
     let member_keys = element.children.try_into_one_element()?;
     member_keys.expect_named("MemberKeys")?;
 
-    let members = member_keys.children.deserialize_named_elements::<Box<str>, Vec<Box<str>>>("string")?;
+    let members = member_keys.children.deserialize_named_elements::<Key, Vec<Key>>("string")?;
 
     Ok(WeaponGroup { name: String::from(name), members })
   }

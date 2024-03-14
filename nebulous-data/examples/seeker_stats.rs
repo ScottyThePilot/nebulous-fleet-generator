@@ -1,33 +1,38 @@
 use nebulous_data::data::missiles::seekers::SeekerStrategyEntry;
 
 fn main() {
-  let mut out = String::new();
-  for entry in SeekerStrategyEntry::get_entries_cached() {
-    let defeat_probability = entry.get_defeat_probability_default();
-    let defeat_probability_no_ewar = entry.get_defeat_probability_default_no_ewar();
+  let display = nebulous_data::utils::anonymous_fmt_display(|f| {
+    for entry in SeekerStrategyEntry::get_entries_cached() {
+      let defeat_probability = entry.get_defeat_probability_default();
+      let defeat_probability_no_ewar = entry.get_defeat_probability_default_no_ewar();
 
-    let min_cost = entry.seeker_strategy.min_cost();
-    let max_cost = entry.seeker_strategy.max_cost();
+      let min_cost = entry.seeker_strategy.min_cost();
+      let max_cost = entry.seeker_strategy.max_cost();
 
-    out.push_str(&format!("### `{}`\n", entry.seeker_strategy));
-    if min_cost == max_cost {
-      out.push_str(&format!("Cost: **{min_cost:.2}**\n"));
-    } else {
-      out.push_str(&format!("Cost: **{min_cost:.2} - {max_cost:.2}**\n"));
-    };
-    out.push_str(&format!("Defeat probability: **{:.2}%**\n", defeat_probability * 100.0));
-    out.push_str(&format!("Defeat probability (no EWAR): **{:.2}%**\n", defeat_probability_no_ewar * 100.0));
-    if entry.countermeasure_methods.is_empty() {
-      out.push_str("Cannot be defeated!\n");
-    } else {
-      out.push_str("Can be defeated by:\n");
-      for &countermeasures in entry.countermeasure_methods.iter() {
-        out.push_str(&format!("- {countermeasures}\n"));
+      writeln!(f, "### `{}`", entry.seeker_strategy)?;
+      match min_cost == max_cost {
+        true => writeln!(f, "- Cost: **{min_cost:.2}**")?,
+        false => writeln!(f, "- Cost: **{min_cost:.2} - {max_cost:.2}**")?
       };
+
+      writeln!(f, "- Defeat probability: **{:.2}%**", defeat_probability * 100.0)?;
+      writeln!(f, "- Defeat probability (no EWAR): **{:.2}%**", defeat_probability_no_ewar * 100.0)?;
+
+      if entry.countermeasure_methods.is_empty() {
+        writeln!(f, "- Cannot be defeated")?;
+      } else {
+        writeln!(f, "- Can be defeated by:")?;
+        for &countermeasures in entry.countermeasure_methods.iter() {
+          writeln!(f, "  - {countermeasures}")?;
+        };
+      };
+
+      writeln!(f)?;
     };
 
-    out.push_str("\n");
-  };
+    Ok(())
+  });
 
-  std::fs::write("./seeker_stats.md", out).unwrap();
+  let writer = std::fs::File::create("./nebulous-data/seeker_stats.md").expect("error");
+  nebulous_data::utils::adapt_fmt(writer, &display).expect("error");
 }

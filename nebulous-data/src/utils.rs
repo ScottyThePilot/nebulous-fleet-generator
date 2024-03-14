@@ -1,9 +1,63 @@
 use bytemuck::Contiguous;
 use itertools::Itertools;
 
+use std::io;
+use std::fmt;
 use std::num::NonZeroU32 as z32;
-
 use std::ops::RangeInclusive;
+
+
+
+/// Produces an [`fmt::Display`]/[`fmt::Debug`] type given a closure to be executed as its body.
+pub fn anonymous_fmt_display<F>(f: F) -> impl fmt::Display + fmt::Debug
+where F: Fn(&mut fmt::Formatter) -> fmt::Result {
+  struct AnonymousDisplay<F>(F);
+
+  impl<F> fmt::Display for AnonymousDisplay<F>
+  where F: Fn(&mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      self.0(f)
+    }
+  }
+
+  impl<F> fmt::Debug for AnonymousDisplay<F>
+  where F: Fn(&mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      self.0(f)
+    }
+  }
+
+  AnonymousDisplay(f)
+}
+
+/// Takes an [`io::Write`] and writes an [`fmt::Display`] value into it.
+pub fn adapt_fmt(writer: impl io::Write, value: &impl fmt::Display) -> io::Result<()> {
+  let mut adapter = WriterAdapter { inner: io::BufWriter::new(writer), error: None };
+  fmt::Write::write_fmt(&mut adapter, format_args!("{value}"))
+    .map_err(|_| adapter.error.expect("error not set"))?;
+  io::Write::flush(&mut adapter.inner)?;
+  Ok(())
+}
+
+struct WriterAdapter<W: io::Write> {
+  inner: io::BufWriter<W>,
+  error: Option<io::Error>
+}
+
+impl<W: io::Write> fmt::Write for WriterAdapter<W> {
+  fn write_str(&mut self, s: &str) -> fmt::Result {
+    match io::Write::write_all(&mut self.inner, s.as_bytes()) {
+      Ok(()) => {
+        self.error = None;
+        Ok(())
+      },
+      Err(error) => {
+        self.error = Some(error);
+        Err(fmt::Error)
+      }
+    }
+  }
+}
 
 
 

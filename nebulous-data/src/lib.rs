@@ -11,11 +11,17 @@ pub extern crate nebulous_xml as xml;
 #[macro_use]
 extern crate thiserror;
 
+#[macro_export]
+macro_rules! key {
+  ($expr:expr) => ($crate::format::key::Key::from_str_unchecked($expr));
+}
+
 #[macro_use]
 pub mod utils;
 pub mod data;
 pub mod format;
 
+pub use crate::format::key::Key;
 pub use crate::utils::Size;
 
 pub mod prelude {
