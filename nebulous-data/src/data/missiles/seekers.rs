@@ -1,3 +1,4 @@
+use crate::data::Faction;
 use crate::utils::ContiguousExt;
 
 use bytemuck::Contiguous;
@@ -377,8 +378,11 @@ impl<S: Copy + Into<SeekerKind>> SeekerStrategy<S> {
     let mut iter = self.iter().peekable();
     while let Some((seeker, validating_seekers)) = next_seeker_layer(&mut iter, &mut buffer) {
       if let Some(defeating_countermeasures) = seeker.get_defeating_countermeasures(countermeasures) {
-        // The seeker has been defeated by jamming or concealment, fall back to the next seeker
-        if defeating_countermeasures.mask_category_inv(CountermeasureCategory::Decoy).any() { continue };
+        let defeated_by_jamming = defeating_countermeasures.mask_category(CountermeasureCategory::Jamming).any();
+        let defeated_by_concealment = defeating_countermeasures.mask_category(CountermeasureCategory::Concealment).any();
+
+        // The seeker has been defeated by jamming, fall back to the next seeker
+        if defeated_by_jamming { continue };
 
         // Validating seekers must invalidate all decoys, otherwise the seeker remains decoyed
         let mut decoys = defeating_countermeasures.mask_category(CountermeasureCategory::Decoy);
@@ -388,7 +392,13 @@ impl<S: Copy + Into<SeekerKind>> SeekerStrategy<S> {
           decoys &= validating_seeker.defeating_countermeasures_mask();
         };
 
-        return decoys.any();
+        let defeated_by_decoys = decoys.any();
+
+        // All decoys were invalidated, but the target is not seen by this seeker, fall back to the next seeker
+        if !defeated_by_decoys && defeated_by_concealment { continue };
+
+        // The missile is defeated by decoys
+        return defeated_by_decoys;
       } else {
         // The missile is not defeated
         return false;
@@ -746,6 +756,18 @@ impl CountermeasuresMask {
   pub const ONLY_JAMMING: Self = Self { radar_jamming: true, comms_jamming: true, laser_dazzler: true, ..Self::NONE };
   pub const ONLY_CONCEALMENT: Self = Self { cut_engines: true, cut_radar: true, ..Self::NONE };
 
+  /// Countermeasures available to the Alliance faction (all except for Laser Dazzler).
+  pub const ONLY_ALLIANCE_COUNTERMEASURES: Self = Self { laser_dazzler: false, ..Self::ALL };
+  /// Countermeasures available to the Protectorate faction (all except for Active Decoy).
+  pub const ONLY_PROTECTORATE_COUNTERMEASURES: Self = Self { active_decoy: false, ..Self::ALL };
+
+  pub const fn from_faction(faction: Faction) -> Self {
+    match faction {
+      Faction::Alliance => Self::ONLY_ALLIANCE_COUNTERMEASURES,
+      Faction::Protectorate => Self::ONLY_PROTECTORATE_COUNTERMEASURES
+    }
+  }
+
   pub const fn any(self) -> bool {
     !self.none()
   }
@@ -813,6 +835,14 @@ impl CountermeasuresMask {
   #[inline]
   pub const fn to_num(self) -> u32 {
     crate::utils::bool_array_to_num(self.into_array())
+  }
+
+  pub const fn mask_faction(self, faction: Faction) -> Self {
+    self.and(Self::from_faction(faction))
+  }
+
+  pub const fn mask_faction_inv(self, faction: Faction) -> Self {
+    self.and(Self::from_faction(faction).not())
   }
 
   pub const fn mask_category(self, category: CountermeasureCategory) -> Self {

@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
+
 
 
 macro_rules! try_opt {
@@ -150,6 +152,36 @@ pub struct KeyFromStrError;
 
 xml::impl_deserialize_nodes_parse!(Key);
 xml::impl_serialize_nodes_display!(Key);
+
+macro_rules! impl_bit_binop {
+  ($Trait:ident, $function:ident, $TraitAssign:ident, $function_assign:ident, $base:ident) => {
+    impl $Trait for Key {
+      type Output = Key;
+
+      fn $function(self, rhs: Self) -> Self::Output {
+        self.$base(rhs)
+      }
+    }
+
+    impl $TraitAssign for Key {
+      fn $function_assign(&mut self, rhs: Self) {
+        *self = self.$base(rhs);
+      }
+    }
+  };
+}
+
+impl_bit_binop!(BitAnd, bitand, BitAndAssign, bitand_assign, and);
+impl_bit_binop!(BitOr, bitor, BitOrAssign, bitor_assign, or);
+impl_bit_binop!(BitXor, bitxor, BitXorAssign, bitxor_assign, xor);
+
+impl Not for Key {
+  type Output = Key;
+
+  fn not(self) -> Self::Output {
+    self.not()
+  }
+}
 
 
 
