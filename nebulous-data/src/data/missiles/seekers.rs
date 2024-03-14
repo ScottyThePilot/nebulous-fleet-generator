@@ -338,7 +338,7 @@ impl<S: Copy + Into<SeekerKind>> SeekerStrategy<S> {
     let mut buffer = Vec::new();
     let mut iter = self.iter().peekable();
     let mut targeting_seekers = Vec::new();
-    // Loop through every group of targeting seekers and any attached validating seekers
+    // Loop through every group of seekers (a targeting seeker and any attached validating seekers)
     while let Some((seeker, validating_seekers)) = next_seeker_layer(&mut iter, &mut buffer) {
       let previous_seeker = targeting_seekers.last().copied();
       let is_primary = previous_seeker.is_none();
@@ -348,11 +348,12 @@ impl<S: Copy + Into<SeekerKind>> SeekerStrategy<S> {
       if matches!(self.primary.into(), SeekerKind::WakeHoming) && !is_primary { return false };
       // Command recievers cannot be backups because they would be better as primaries
       if matches!(seeker, SeekerKind::Command) && !is_primary { return false };
-      // Command recievers and Wake-Homing seekers cannot have validators
-      if matches!(seeker, SeekerKind::Command | SeekerKind::WakeHoming) && !validating_seekers.is_empty() { return false };
-      // Home-On-Jam seekers must only be used as backups for Active Radar or Semi-Active Radar seekers,
-      // and may not be primary seekers, because Anti-Radiation would always be better
-      if matches!(seeker, SeekerKind::HomeOnJam) && !matches!(previous_seeker, Some(SeekerKind::ActiveRadar | SeekerKind::SemiActiveRadar)) { return false };
+      // Command recievers, Wake-Homing seekers, and Home-On-Jam cannot have validators
+      if matches!(seeker, SeekerKind::Command | SeekerKind::WakeHoming | SeekerKind::HomeOnJam) && !validating_seekers.is_empty() { return false };
+      // Home-On-Jam seekers must only be used as either primaries or backups for Active Radar or Semi-Active Radar seekers
+      if matches!(seeker, SeekerKind::HomeOnJam) && !matches!(previous_seeker, Some(SeekerKind::ActiveRadar | SeekerKind::SemiActiveRadar) | None) { return false };
+      // Anti-Radiation seekers cannot have validators, except for Wake Homing validators
+      if matches!(seeker, SeekerKind::AntiRadiation) && !(validating_seekers.is_empty() || validating_seekers.contains(&SeekerKind::WakeHoming)) { return false };
       // Electro-Optical seekers cannot have validators, except for Command reciever validators
       if matches!(seeker, SeekerKind::ElectroOptical) && !(validating_seekers.is_empty() || validating_seekers.contains(&SeekerKind::Command)) { return false };
       // Active Radar, Semi-Active Radar, and Home-On-Jam are not allowed to be validators
@@ -365,6 +366,9 @@ impl<S: Copy + Into<SeekerKind>> SeekerStrategy<S> {
       if has_redundancy(validating_seekers) { return false };
     };
 
+    // Home-On-Jam all by itself is very bad
+    if targeting_seekers == [SeekerKind::HomeOnJam] { return false };
+
     // Filter out redundant combinations (duplicate targeting seekers)
     if has_redundancy(&targeting_seekers) { return false };
 
@@ -376,8 +380,12 @@ impl<S: Copy + Into<SeekerKind>> SeekerStrategy<S> {
 
     let mut buffer = Vec::new();
     let mut iter = self.iter().peekable();
+    // Loop through every group of seekers (a targeting seeker and any attached validating seekers)
     while let Some((seeker, validating_seekers)) = next_seeker_layer(&mut iter, &mut buffer) {
-      if let Some(defeating_countermeasures) = seeker.get_defeating_countermeasures(countermeasures) {
+      if matches!(seeker, SeekerKind::HomeOnJam) {
+        // If there is no radar jamming, the Home-On-Jam seeker does not see anything, fall back to the next seeker
+        if countermeasures.radar_jamming { return false } else { continue };
+      } else if let Some(defeating_countermeasures) = seeker.get_defeating_countermeasures(countermeasures) {
         let defeated_by_jamming = defeating_countermeasures.mask_category(CountermeasureCategory::Jamming).any();
         let defeated_by_concealment = defeating_countermeasures.mask_category(CountermeasureCategory::Concealment).any();
 

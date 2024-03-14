@@ -223,14 +223,6 @@
 - Can be defeated by:
   - Radar Jamming
 
-### `ARAD(RADAR)/[CMD]`
-- Cost: **5.00**
-- Defeat probability: **43.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Disable Radar
-  - Comms Jamming + Active Decoy
-
 ### `ARAD(RADAR)/ACT(RADAR)`
 - Cost: **3.00 - 5.00**
 - Defeat probability: **52.38%**
@@ -255,14 +247,6 @@
   - Active Decoy
   - Laser Dazzler + Disable Radar
 
-### `ARAD(RADAR)/[PSV(EO)]`
-- Cost: **7.00**
-- Defeat probability: **7.38%**
-- Defeat probability (no EWAR): **7.38%**
-- Can be defeated by:
-  - Disable Radar
-  - Laser Dazzler + Active Decoy
-
 ### `ARAD(RADAR)/PSV(WAKE)`
 - Cost: **2.25**
 - Defeat probability: **50.87%**
@@ -278,6 +262,37 @@
 - Defeat probability (no EWAR): **5.00%**
 - Can be defeated by:
   - Disable Radar
+
+### `HOJ(RADAR)/ACT(RADAR)`
+- Cost: **1.50 - 3.50**
+- Defeat probability: **97.50%**
+- Defeat probability (no EWAR): **97.50%**
+- Can be defeated by:
+  - Chaff Decoy
+  - Active Decoy
+
+### `HOJ(RADAR)/SAH(RADAR)`
+- Cost: **0.50**
+- Defeat probability: **97.50%**
+- Defeat probability (no EWAR): **97.50%**
+- Can be defeated by:
+  - Chaff Decoy
+  - Active Decoy
+
+### `HOJ(RADAR)/PSV(EO)`
+- Cost: **8.50**
+- Defeat probability: **5.00%**
+- Defeat probability (no EWAR): **5.00%**
+- Can be defeated by:
+  - Laser Dazzler
+
+### `HOJ(RADAR)/PSV(WAKE)`
+- Cost: **0.75**
+- Defeat probability: **32.00%**
+- Defeat probability (no EWAR): **32.00%**
+- Can be defeated by:
+  - Flare Decoy
+  - Disable Engines
 
 ### `PSV(EO)/[CMD]`
 - Cost: **11.00**
@@ -456,14 +471,6 @@
 - Can be defeated by:
   - Radar Jamming + Comms Jamming
 
-### `CMD/ARAD(RADAR)/[CMD]`
-- Cost: **8.50**
-- Defeat probability: **42.40%**
-- Defeat probability (no EWAR): **0.00%**
-- Can be defeated by:
-  - Comms Jamming + Active Decoy
-  - Comms Jamming + Disable Radar
-
 ### `CMD/ARAD(RADAR)/ACT(RADAR)`
 - Cost: **6.50 - 8.50**
 - Defeat probability: **42.28%**
@@ -487,14 +494,6 @@
 - Can be defeated by:
   - Comms Jamming + Active Decoy
   - Comms Jamming + Laser Dazzler + Disable Radar
-
-### `CMD/ARAD(RADAR)/[PSV(EO)]`
-- Cost: **10.50**
-- Defeat probability: **5.92%**
-- Defeat probability (no EWAR): **0.00%**
-- Can be defeated by:
-  - Comms Jamming + Disable Radar
-  - Comms Jamming + Laser Dazzler + Active Decoy
 
 ### `CMD/ARAD(RADAR)/PSV(WAKE)`
 - Cost: **5.75**
@@ -649,24 +648,8 @@
 - Can be defeated by:
   - Radar Jamming
 
-### `ACT(RADAR)/ARAD(RADAR)/[CMD]`
-- Cost: **6.00 - 8.00**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
 ### `ACT(RADAR)/ARAD(RADAR)/PSV(EO)`
 - Cost: **11.00 - 13.00**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
-### `ACT(RADAR)/ARAD(RADAR)/[PSV(EO)]`
-- Cost: **8.00 - 10.00**
 - Defeat probability: **97.50%**
 - Defeat probability (no EWAR): **97.50%**
 - Can be defeated by:
@@ -743,22 +726,6 @@
 - Can be defeated by:
   - Radar Jamming
 
-### `ACT(RADAR)/HOJ(RADAR)/[CMD]`
-- Cost: **4.50 - 6.50**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
-### `ACT(RADAR)/HOJ(RADAR)/[ARAD(RADAR)]`
-- Cost: **3.50 - 5.50**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
 ### `ACT(RADAR)/HOJ(RADAR)/PSV(EO)`
 - Cost: **9.50 - 11.50**
 - Defeat probability: **97.50%**
@@ -767,24 +734,8 @@
   - Chaff Decoy
   - Active Decoy
 
-### `ACT(RADAR)/HOJ(RADAR)/[PSV(EO)]`
-- Cost: **6.50 - 8.50**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
 ### `ACT(RADAR)/HOJ(RADAR)/PSV(WAKE)`
 - Cost: **1.75 - 3.75**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
-### `ACT(RADAR)/HOJ(RADAR)/[PSV(WAKE)]`
-- Cost: **2.00 - 4.00**
 - Defeat probability: **97.50%**
 - Defeat probability (no EWAR): **97.50%**
 - Can be defeated by:
@@ -1003,24 +954,8 @@
 - Can be defeated by:
   - Radar Jamming
 
-### `SAH(RADAR)/ARAD(RADAR)/[CMD]`
-- Cost: **5.00**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
 ### `SAH(RADAR)/ARAD(RADAR)/PSV(EO)`
 - Cost: **10.00**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
-### `SAH(RADAR)/ARAD(RADAR)/[PSV(EO)]`
-- Cost: **7.00**
 - Defeat probability: **97.50%**
 - Defeat probability (no EWAR): **97.50%**
 - Can be defeated by:
@@ -1097,22 +1032,6 @@
 - Can be defeated by:
   - Radar Jamming
 
-### `SAH(RADAR)/HOJ(RADAR)/[CMD]`
-- Cost: **3.50**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
-### `SAH(RADAR)/HOJ(RADAR)/[ARAD(RADAR)]`
-- Cost: **2.50**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
 ### `SAH(RADAR)/HOJ(RADAR)/PSV(EO)`
 - Cost: **8.50**
 - Defeat probability: **97.50%**
@@ -1121,24 +1040,8 @@
   - Chaff Decoy
   - Active Decoy
 
-### `SAH(RADAR)/HOJ(RADAR)/[PSV(EO)]`
-- Cost: **5.50**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
 ### `SAH(RADAR)/HOJ(RADAR)/PSV(WAKE)`
 - Cost: **0.75**
-- Defeat probability: **97.50%**
-- Defeat probability (no EWAR): **97.50%**
-- Can be defeated by:
-  - Chaff Decoy
-  - Active Decoy
-
-### `SAH(RADAR)/HOJ(RADAR)/[PSV(WAKE)]`
-- Cost: **1.00**
 - Defeat probability: **97.50%**
 - Defeat probability (no EWAR): **97.50%**
 - Can be defeated by:
@@ -1298,49 +1201,6 @@
   - Radar Jamming + Flare Decoy
   - Radar Jamming + Disable Engines
 
-### `ARAD(RADAR)/[CMD]/ACT(RADAR)`
-- Cost: **6.00 - 8.00**
-- Defeat probability: **44.28%**
-- Defeat probability (no EWAR): **7.13%**
-- Can be defeated by:
-  - Comms Jamming + Active Decoy
-  - Chaff Decoy + Disable Radar
-  - Active Decoy + Disable Radar
-
-### `ARAD(RADAR)/[CMD]/SAH(RADAR)`
-- Cost: **5.00**
-- Defeat probability: **44.28%**
-- Defeat probability (no EWAR): **7.13%**
-- Can be defeated by:
-  - Comms Jamming + Active Decoy
-  - Chaff Decoy + Disable Radar
-  - Active Decoy + Disable Radar
-
-### `ARAD(RADAR)/[CMD]/PSV(EO)`
-- Cost: **13.00**
-- Defeat probability: **40.15%**
-- Defeat probability (no EWAR): **0.25%**
-- Can be defeated by:
-  - Comms Jamming + Active Decoy
-  - Laser Dazzler + Disable Radar
-
-### `ARAD(RADAR)/[CMD]/[PSV(EO)]`
-- Cost: **10.00**
-- Defeat probability: **6.90%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Disable Radar
-  - Comms Jamming + Laser Dazzler + Active Decoy
-
-### `ARAD(RADAR)/[CMD]/PSV(WAKE)`
-- Cost: **5.25**
-- Defeat probability: **41.05%**
-- Defeat probability (no EWAR): **1.74%**
-- Can be defeated by:
-  - Comms Jamming + Active Decoy
-  - Flare Decoy + Disable Radar
-  - Disable Engines + Disable Radar
-
 ### `ARAD(RADAR)/[CMD]/[PSV(WAKE)]`
 - Cost: **5.50**
 - Defeat probability: **5.00%**
@@ -1473,49 +1333,6 @@
   - Laser Dazzler + Flare Decoy + Disable Radar
   - Laser Dazzler + Disable Engines + Disable Radar
 
-### `ARAD(RADAR)/[PSV(EO)]/[CMD]`
-- Cost: **10.00**
-- Defeat probability: **6.90%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Disable Radar
-  - Comms Jamming + Laser Dazzler + Active Decoy
-
-### `ARAD(RADAR)/[PSV(EO)]/ACT(RADAR)`
-- Cost: **8.00 - 10.00**
-- Defeat probability: **9.45%**
-- Defeat probability (no EWAR): **9.45%**
-- Can be defeated by:
-  - Laser Dazzler + Active Decoy
-  - Chaff Decoy + Disable Radar
-  - Active Decoy + Disable Radar
-
-### `ARAD(RADAR)/[PSV(EO)]/SAH(RADAR)`
-- Cost: **7.00**
-- Defeat probability: **9.45%**
-- Defeat probability (no EWAR): **9.45%**
-- Can be defeated by:
-  - Laser Dazzler + Active Decoy
-  - Chaff Decoy + Disable Radar
-  - Active Decoy + Disable Radar
-
-### `ARAD(RADAR)/[PSV(EO)]/PSV(EO)`
-- Cost: **15.00**
-- Defeat probability: **2.74%**
-- Defeat probability (no EWAR): **2.74%**
-- Can be defeated by:
-  - Laser Dazzler + Active Decoy
-  - Laser Dazzler + Disable Radar
-
-### `ARAD(RADAR)/[PSV(EO)]/PSV(WAKE)`
-- Cost: **7.25**
-- Defeat probability: **4.20%**
-- Defeat probability (no EWAR): **4.20%**
-- Can be defeated by:
-  - Laser Dazzler + Active Decoy
-  - Flare Decoy + Disable Radar
-  - Disable Engines + Disable Radar
-
 ### `ARAD(RADAR)/[PSV(EO)]/[PSV(WAKE)]`
 - Cost: **7.50**
 - Defeat probability: **5.00%**
@@ -1594,6 +1411,153 @@
 - Can be defeated by:
   - Flare Decoy + Disable Radar
   - Disable Engines + Disable Radar
+
+### `HOJ(RADAR)/ACT(RADAR)/[CMD]`
+- Cost: **4.50 - 6.50**
+- Defeat probability: **85.60%**
+- Defeat probability (no EWAR): **0.00%**
+- Can be defeated by:
+  - Comms Jamming + Chaff Decoy
+  - Comms Jamming + Active Decoy
+
+### `HOJ(RADAR)/ACT(RADAR)/[ARAD(RADAR)]`
+- Cost: **3.50 - 5.50**
+- Defeat probability: **50.00%**
+- Defeat probability (no EWAR): **50.00%**
+- Can be defeated by:
+  - Active Decoy
+
+### `HOJ(RADAR)/ACT(RADAR)/PSV(EO)`
+- Cost: **9.50 - 11.50**
+- Defeat probability: **97.50%**
+- Defeat probability (no EWAR): **97.50%**
+- Can be defeated by:
+  - Chaff Decoy
+  - Active Decoy
+
+### `HOJ(RADAR)/ACT(RADAR)/[PSV(EO)]`
+- Cost: **6.50 - 8.50**
+- Defeat probability: **7.13%**
+- Defeat probability (no EWAR): **7.13%**
+- Can be defeated by:
+  - Laser Dazzler + Chaff Decoy
+  - Laser Dazzler + Active Decoy
+
+### `HOJ(RADAR)/ACT(RADAR)/PSV(WAKE)`
+- Cost: **1.75 - 3.75**
+- Defeat probability: **97.50%**
+- Defeat probability (no EWAR): **97.50%**
+- Can be defeated by:
+  - Chaff Decoy
+  - Active Decoy
+
+### `HOJ(RADAR)/ACT(RADAR)/[PSV(WAKE)]`
+- Cost: **2.00 - 4.00**
+- Defeat probability: **0.00%**
+- Defeat probability (no EWAR): **0.00%**
+- Cannot be defeated
+
+### `HOJ(RADAR)/SAH(RADAR)/[CMD]`
+- Cost: **3.50**
+- Defeat probability: **85.60%**
+- Defeat probability (no EWAR): **0.00%**
+- Can be defeated by:
+  - Comms Jamming + Chaff Decoy
+  - Comms Jamming + Active Decoy
+
+### `HOJ(RADAR)/SAH(RADAR)/[ARAD(RADAR)]`
+- Cost: **2.50**
+- Defeat probability: **50.00%**
+- Defeat probability (no EWAR): **50.00%**
+- Can be defeated by:
+  - Active Decoy
+
+### `HOJ(RADAR)/SAH(RADAR)/PSV(EO)`
+- Cost: **8.50**
+- Defeat probability: **97.50%**
+- Defeat probability (no EWAR): **97.50%**
+- Can be defeated by:
+  - Chaff Decoy
+  - Active Decoy
+
+### `HOJ(RADAR)/SAH(RADAR)/[PSV(EO)]`
+- Cost: **5.50**
+- Defeat probability: **7.13%**
+- Defeat probability (no EWAR): **7.13%**
+- Can be defeated by:
+  - Laser Dazzler + Chaff Decoy
+  - Laser Dazzler + Active Decoy
+
+### `HOJ(RADAR)/SAH(RADAR)/PSV(WAKE)`
+- Cost: **0.75**
+- Defeat probability: **97.50%**
+- Defeat probability (no EWAR): **97.50%**
+- Can be defeated by:
+  - Chaff Decoy
+  - Active Decoy
+
+### `HOJ(RADAR)/SAH(RADAR)/[PSV(WAKE)]`
+- Cost: **1.00**
+- Defeat probability: **0.00%**
+- Defeat probability (no EWAR): **0.00%**
+- Cannot be defeated
+
+### `HOJ(RADAR)/PSV(EO)/[CMD]`
+- Cost: **11.50**
+- Defeat probability: **5.00%**
+- Defeat probability (no EWAR): **5.00%**
+- Can be defeated by:
+  - Laser Dazzler
+
+### `HOJ(RADAR)/PSV(EO)/ACT(RADAR)`
+- Cost: **9.50 - 11.50**
+- Defeat probability: **7.13%**
+- Defeat probability (no EWAR): **7.13%**
+- Can be defeated by:
+  - Laser Dazzler + Chaff Decoy
+  - Laser Dazzler + Active Decoy
+
+### `HOJ(RADAR)/PSV(EO)/SAH(RADAR)`
+- Cost: **8.50**
+- Defeat probability: **7.13%**
+- Defeat probability (no EWAR): **7.13%**
+- Can be defeated by:
+  - Laser Dazzler + Chaff Decoy
+  - Laser Dazzler + Active Decoy
+
+### `HOJ(RADAR)/PSV(EO)/PSV(WAKE)`
+- Cost: **8.75**
+- Defeat probability: **1.74%**
+- Defeat probability (no EWAR): **1.74%**
+- Can be defeated by:
+  - Laser Dazzler + Flare Decoy
+  - Laser Dazzler + Disable Engines
+
+### `HOJ(RADAR)/PSV(WAKE)/ACT(RADAR)`
+- Cost: **1.75 - 3.75**
+- Defeat probability: **38.03%**
+- Defeat probability (no EWAR): **38.03%**
+- Can be defeated by:
+  - Flare Decoy
+  - Chaff Decoy + Disable Engines
+  - Active Decoy + Disable Engines
+
+### `HOJ(RADAR)/PSV(WAKE)/SAH(RADAR)`
+- Cost: **0.75**
+- Defeat probability: **38.03%**
+- Defeat probability (no EWAR): **38.03%**
+- Can be defeated by:
+  - Flare Decoy
+  - Chaff Decoy + Disable Engines
+  - Active Decoy + Disable Engines
+
+### `HOJ(RADAR)/PSV(WAKE)/PSV(EO)`
+- Cost: **8.75**
+- Defeat probability: **15.85%**
+- Defeat probability (no EWAR): **15.85%**
+- Can be defeated by:
+  - Flare Decoy
+  - Laser Dazzler + Disable Engines
 
 ### `PSV(EO)/[CMD]/ACT(RADAR)`
 - Cost: **12.00 - 14.00**
@@ -1761,14 +1725,6 @@
 - Can be defeated by:
   - Radar Jamming + Laser Dazzler
 
-### `PSV(EO)/ARAD(RADAR)/[CMD]`
-- Cost: **13.00**
-- Defeat probability: **2.24%**
-- Defeat probability (no EWAR): **0.25%**
-- Can be defeated by:
-  - Laser Dazzler + Disable Radar
-  - Comms Jamming + Laser Dazzler + Active Decoy
-
 ### `PSV(EO)/ARAD(RADAR)/ACT(RADAR)`
 - Cost: **11.00 - 13.00**
 - Defeat probability: **2.73%**
@@ -1784,14 +1740,6 @@
 - Can be defeated by:
   - Laser Dazzler + Active Decoy
   - Laser Dazzler + Chaff Decoy + Disable Radar
-
-### `PSV(EO)/ARAD(RADAR)/[PSV(EO)]`
-- Cost: **15.00**
-- Defeat probability: **2.74%**
-- Defeat probability (no EWAR): **2.74%**
-- Can be defeated by:
-  - Laser Dazzler + Active Decoy
-  - Laser Dazzler + Disable Radar
 
 ### `PSV(EO)/ARAD(RADAR)/PSV(WAKE)`
 - Cost: **10.25**
