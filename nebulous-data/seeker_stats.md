@@ -1201,13 +1201,6 @@
   - Radar Jamming + Flare Decoy
   - Radar Jamming + Disable Engines
 
-### `ARAD(RADAR)/[CMD]/[PSV(WAKE)]`
-- Cost: **5.50**
-- Defeat probability: **5.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Disable Radar
-
 ### `ARAD(RADAR)/ACT(RADAR)/[CMD]`
 - Cost: **6.00 - 8.00**
 - Defeat probability: **51.90%**
@@ -1333,13 +1326,6 @@
   - Laser Dazzler + Flare Decoy + Disable Radar
   - Laser Dazzler + Disable Engines + Disable Radar
 
-### `ARAD(RADAR)/[PSV(EO)]/[PSV(WAKE)]`
-- Cost: **7.50**
-- Defeat probability: **5.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Disable Radar
-
 ### `ARAD(RADAR)/PSV(WAKE)/ACT(RADAR)`
 - Cost: **3.25 - 5.25**
 - Defeat probability: **50.85%**
@@ -1367,13 +1353,6 @@
   - Flare Decoy + Disable Radar
   - Laser Dazzler + Disable Engines + Disable Radar
 
-### `ARAD(RADAR)/[PSV(WAKE)]/[CMD]`
-- Cost: **5.50**
-- Defeat probability: **5.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Disable Radar
-
 ### `ARAD(RADAR)/[PSV(WAKE)]/ACT(RADAR)`
 - Cost: **3.50 - 5.50**
 - Defeat probability: **7.13%**
@@ -1396,13 +1375,6 @@
 - Defeat probability (no EWAR): **0.25%**
 - Can be defeated by:
   - Laser Dazzler + Disable Radar
-
-### `ARAD(RADAR)/[PSV(WAKE)]/[PSV(EO)]`
-- Cost: **7.50**
-- Defeat probability: **5.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Disable Radar
 
 ### `ARAD(RADAR)/[PSV(WAKE)]/PSV(WAKE)`
 - Cost: **2.75**
@@ -1585,13 +1557,6 @@
   - Laser Dazzler + Active Decoy
   - Laser Dazzler + Disable Radar
 
-### `PSV(EO)/[CMD]/[ARAD(RADAR)]`
-- Cost: **13.00**
-- Defeat probability: **5.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Laser Dazzler
-
 ### `PSV(EO)/[CMD]/PSV(WAKE)`
 - Cost: **11.25**
 - Defeat probability: **1.74%**
@@ -1599,13 +1564,6 @@
 - Can be defeated by:
   - Laser Dazzler + Flare Decoy
   - Laser Dazzler + Disable Engines
-
-### `PSV(EO)/[CMD]/[PSV(WAKE)]`
-- Cost: **11.50**
-- Defeat probability: **5.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Laser Dazzler
 
 ### `PSV(EO)/ACT(RADAR)/[CMD]`
 - Cost: **12.00 - 14.00**
@@ -1757,13 +1715,6 @@
 - Can be defeated by:
   - Laser Dazzler + Disable Radar
 
-### `PSV(EO)/[ARAD(RADAR)]/[CMD]`
-- Cost: **13.00**
-- Defeat probability: **5.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Laser Dazzler
-
 ### `PSV(EO)/PSV(WAKE)/ACT(RADAR)`
 - Cost: **9.25 - 11.25**
 - Defeat probability: **3.06%**
@@ -1792,11 +1743,4 @@
   - Laser Dazzler + Flare Decoy
   - Laser Dazzler + Active Decoy + Disable Engines
   - Laser Dazzler + Disable Engines + Disable Radar
-
-### `PSV(EO)/[PSV(WAKE)]/[CMD]`
-- Cost: **11.50**
-- Defeat probability: **5.00%**
-- Defeat probability (no EWAR): **5.00%**
-- Can be defeated by:
-  - Laser Dazzler
 

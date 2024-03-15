@@ -353,9 +353,9 @@ impl<S: Copy + Into<SeekerKind>> SeekerStrategy<S> {
       // Home-On-Jam seekers must only be used as either primaries or backups for Active Radar or Semi-Active Radar seekers
       if matches!(seeker, SeekerKind::HomeOnJam) && !matches!(previous_seeker, Some(SeekerKind::ActiveRadar | SeekerKind::SemiActiveRadar) | None) { return false };
       // Anti-Radiation seekers cannot have validators, except for Wake Homing validators
-      if matches!(seeker, SeekerKind::AntiRadiation) && !(validating_seekers.is_empty() || validating_seekers.contains(&SeekerKind::WakeHoming)) { return false };
+      if matches!(seeker, SeekerKind::AntiRadiation) && !(validating_seekers.is_empty() || validating_seekers == [SeekerKind::WakeHoming]) { return false };
       // Electro-Optical seekers cannot have validators, except for Command reciever validators
-      if matches!(seeker, SeekerKind::ElectroOptical) && !(validating_seekers.is_empty() || validating_seekers.contains(&SeekerKind::Command)) { return false };
+      if matches!(seeker, SeekerKind::ElectroOptical) && !(validating_seekers.is_empty() || validating_seekers == [SeekerKind::Command]) { return false };
       // Active Radar, Semi-Active Radar, and Home-On-Jam are not allowed to be validators
       if validating_seekers.contains(&SeekerKind::ActiveRadar) { return false };
       if validating_seekers.contains(&SeekerKind::SemiActiveRadar) { return false };
