@@ -24,7 +24,7 @@ pub struct Hull {
   pub base_integrity: f32,
   pub armor_thickness: f32,
   pub base_crew_complement: usize,
-  pub buffs: &'static [(Buff, f32)],
+  pub buffs: &'static [Buff],
   pub sockets: &'static [HullSocket],
   pub socket_symmetries: &'static [(Key, Key)]
 }
@@ -142,9 +142,9 @@ pub mod list {
     armor_thickness: 8.0,
     base_crew_complement: 40,
     buffs: &[
-      (Buff::FlankDamageProbability, -0.2),
-      (Buff::PositionalError, -0.15),
-      (Buff::Sensitivity, 0.2)
+      Buff::FlankDamageProbability(-0.2),
+      Buff::PositionalError(-0.15),
+      Buff::Sensitivity(0.2)
     ],
     sockets: &[
       HullSocket::mount(key!("wDsRnL5nKkyYvKgD6VcPHg"), Size::new(3, 4, 5), Down, 1.0),
@@ -180,8 +180,8 @@ pub mod list {
     armor_thickness: 15.0,
     base_crew_complement: 50,
     buffs: &[
-      (Buff::FlankDamageProbability, -0.15),
-      (Buff::MissileProgrammingChannels, 1.0)
+      Buff::FlankDamageProbability(-0.15),
+      Buff::MissileProgrammingChannels(1)
     ],
     sockets: &[
       HullSocket::mount(key!("PDKmGfvpykODc3XHDQ7WBw"), Size::new(3, 4, 3), Up, 1.0),
@@ -218,9 +218,9 @@ pub mod list {
     armor_thickness: 22.0,
     base_crew_complement: 50,
     buffs: &[
-      (Buff::MissileProgrammingChannels, 1.0),
-      (Buff::OverheatDamageChanceBeam, -0.75),
-      (Buff::PowerplantEfficiency, 0.25)
+      Buff::MissileProgrammingChannels(1),
+      Buff::OverheatDamageChanceBeam(-0.75),
+      Buff::PowerplantEfficiency(0.25)
     ],
     sockets: &[
       HullSocket::mount(key!("NpYYAkA5Z0uAElOjDg3Rag"), Size::new(3, 4, 5), Up, 1.0),
@@ -264,7 +264,7 @@ pub mod list {
     armor_thickness: 30.0,
     base_crew_complement: 75,
     buffs: &[
-      (Buff::MissileProgrammingChannels, 2.0)
+      Buff::MissileProgrammingChannels(2)
     ],
     sockets: &[
       HullSocket::mount(key!("T9Ebo41iA0eBXNYx8uyisw"), Size::new(3, 4, 5), Up, 1.0),
@@ -316,8 +316,8 @@ pub mod list {
     armor_thickness: 40.0,
     base_crew_complement: 90,
     buffs: &[
-      (Buff::MaxRepair, 0.15),
-      (Buff::MissileProgrammingChannels, 2.0)
+      Buff::MaxRepair(0.15),
+      Buff::MissileProgrammingChannels(2)
     ],
     sockets: &[
       HullSocket::mount(key!("whDP9rtbukKsocnrqnqaLQ"), Size::new(6, 4, 6), Up, 1.0),
@@ -376,7 +376,7 @@ pub mod list {
     armor_thickness: 58.0,
     base_crew_complement: 150,
     buffs: &[
-      (Buff::MaxRepair, 0.05)
+      Buff::MaxRepair(0.05)
     ],
     sockets: &[
       HullSocket::mount(key!("vvpl_pV8B0W33ernrw31jg"), Size::new(8, 7, 8), Up, 1.0),
@@ -447,7 +447,7 @@ pub mod list {
     armor_thickness: 5.0,
     base_crew_complement: 55,
     buffs: &[
-      (Buff::FlankDamageProbability, -0.2)
+      Buff::FlankDamageProbability(-0.2)
     ],
     sockets: &[
       HullSocket::mount(key!("3mlCA6C6m0GI3wONZK_aqg"), Size::new(3, 2, 3), Up, 1.0),
@@ -552,7 +552,7 @@ pub mod list {
     armor_thickness: 30.0,
     base_crew_complement: 80,
     buffs: &[
-      (Buff::MissileProgrammingChannels, 2.0)
+      Buff::MissileProgrammingChannels(2)
     ],
     sockets: &[
       HullSocket::mount(key!("iJzzxinSN0uJIjrt9M3aGA"), Size::new(6, 4, 6), Up, 1.0),
@@ -606,8 +606,8 @@ pub mod list {
     armor_thickness: 20.0,
     base_crew_complement: 100,
     buffs: &[
-      (Buff::MissileProgrammingChannels, 1.0),
-      (Buff::RepairTeamMoveSpeed, 0.2)
+      Buff::MissileProgrammingChannels(1),
+      Buff::RepairTeamMoveSpeed(0.2)
     ],
     sockets: &[
       // Depending on the bulk freighter's hull config, mounts 14 and 15 may be oriented differently
@@ -667,7 +667,7 @@ pub mod list {
     armor_thickness: 20.0,
     base_crew_complement: 100,
     buffs: &[
-      (Buff::MissileProgrammingChannels, 3.0)
+      Buff::MissileProgrammingChannels(3)
     ],
     sockets: &[
       HullSocket::mount_unknown(key!("uLHDwjLFekuYaY3h0JwZoQ"), Size::new(20, 5, 30), 1.0),

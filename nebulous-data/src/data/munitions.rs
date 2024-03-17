@@ -88,7 +88,15 @@ pub enum MunitionFamily {
 
 impl MunitionFamily {
   pub fn keys(self) -> impl Iterator<Item = MunitionKey> + DoubleEndedIterator + Clone {
-    MunitionKey::VALUES.iter().copied().filter(move |&key| key.munition().family == self)
+    MunitionKey::VALUES.iter().copied().filter(move |&key| {
+      key.munition().family == self
+    })
+  }
+
+  pub fn keys_by_role(self, role: WeaponRole) -> impl Iterator<Item = MunitionKey> + DoubleEndedIterator + Clone {
+    MunitionKey::VALUES.iter().copied().filter(move |&key| {
+      key.munition().family == self && key.munition().role == role
+    })
   }
 }
 

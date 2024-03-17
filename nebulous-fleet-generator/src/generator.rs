@@ -53,7 +53,6 @@ fn step_stage<S: Stage>(rng: &mut Random, parameters: &Parameters, layers: &Gene
   let mut layer = layers.iter().flatten()
     .flat_map(|fleet| S::operation(&mut Random::derive(rng), parameters, fleet))
     .filter(|fleet| S::is_fleet_legal(parameters, fleet))
-    .map(FleetState::make_sorted)
     .chain(layers.iter().flatten().cloned())
     .collect::<GeneratorStateLayer>();
   layer.sort_by_cached_key(|fleet| Reverse(FloatOrd(S::get_fleet_score(parameters, fleet))));

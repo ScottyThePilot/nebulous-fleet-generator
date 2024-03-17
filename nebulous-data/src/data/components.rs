@@ -28,7 +28,7 @@ pub struct Component {
   pub crew: isize,
   pub max_health: f32,
   pub reinforced: bool,
-  pub buffs: &'static [(Buff, f32)]
+  pub buffs: &'static [Buff]
 }
 
 impl Component {
@@ -601,9 +601,9 @@ pub mod list {
     max_health: 40.0,
     reinforced: false,
     buffs: &[
-      (Buff::BurstDurationEmitters, 0.25),
-      (Buff::CooldownTimeEmitters, -0.2),
-      (Buff::OverheatDamageChanceEmitters, -0.1)
+      Buff::BurstDurationEmitters(0.25),
+      Buff::CooldownTimeEmitters(-0.2),
+      Buff::OverheatDamageChanceEmitters(-0.1)
     ]
   };
 
@@ -623,10 +623,10 @@ pub mod list {
     max_health: 40.0,
     reinforced: false,
     buffs: &[
-      (Buff::NoiseFiltering, -0.7),
-      (Buff::PositionalError, 0.05),
-      (Buff::Sensitivity, 0.25),
-      (Buff::VelocityError, 0.025)
+      Buff::NoiseFiltering(-0.7),
+      Buff::PositionalError(0.05),
+      Buff::Sensitivity(0.25),
+      Buff::VelocityError(0.025)
     ]
   };
 
@@ -646,7 +646,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::LauncherReloadTime, -0.15), (Buff::ReloadTime, -0.15)
+      Buff::LauncherReloadTime(-0.15), Buff::ReloadTime(-0.15)
     ]
   };
 
@@ -666,8 +666,8 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::IntelligenceAccuracy, -0.3),
-      (Buff::IntelligenceEffort, 0.3)
+      Buff::IntelligenceAccuracy(-0.3),
+      Buff::IntelligenceEffort(0.3)
     ]
   };
 
@@ -745,9 +745,9 @@ pub mod list {
     max_health: 700.0,
     reinforced: false,
     buffs: &[
-      (Buff::AngularThrust, -0.15),
-      (Buff::LinearThrust, -0.15),
-      (Buff::TopSpeed, -0.1)
+      Buff::AngularThrust(-0.15),
+      Buff::LinearThrust(-0.15),
+      Buff::TopSpeed(-0.1)
     ]
   };
 
@@ -825,7 +825,7 @@ pub mod list {
     max_health: 125.0,
     reinforced: false,
     buffs: &[
-      (Buff::CrewVulnerability, -0.3)
+      Buff::CrewVulnerability(-0.3)
     ]
   };
 
@@ -1099,9 +1099,9 @@ pub mod list {
     max_health: 700.0,
     reinforced: false,
     buffs: &[
-      (Buff::AngularThrust, 0.35),
-      (Buff::TopSpeed, -0.15),
-      (Buff::TurnRate, 0.4)
+      Buff::AngularThrust(0.35),
+      Buff::TopSpeed(-0.15),
+      Buff::TurnRate(0.4)
     ]
   };
 
@@ -1121,10 +1121,10 @@ pub mod list {
     max_health: 250.0,
     reinforced: false,
     buffs: &[
-      (Buff::AngularThrust, 0.4),
-      (Buff::LinearThrust, 0.1),
-      (Buff::TopSpeed, -0.1),
-      (Buff::TurnRate, 0.45)
+      Buff::AngularThrust(0.4),
+      Buff::LinearThrust(0.1),
+      Buff::TopSpeed(-0.1),
+      Buff::TurnRate(0.45)
     ]
   };
 
@@ -1144,9 +1144,9 @@ pub mod list {
     max_health: 700.0,
     reinforced: false,
     buffs: &[
-      (Buff::FlankDamageProbability, 0.5),
-      (Buff::LinearThrust, 0.2),
-      (Buff::TopSpeed, 0.2)
+      Buff::FlankDamageProbability(0.5),
+      Buff::LinearThrust(0.2),
+      Buff::TopSpeed(0.2)
     ]
   };
 
@@ -1357,7 +1357,7 @@ pub mod list {
     max_health: 200.0,
     reinforced: false,
     buffs: &[
-      (Buff::RepairSpeed, 0.1), (Buff::RepairTeamMoveSpeed, 0.5)
+      Buff::RepairSpeed(0.1), Buff::RepairTeamMoveSpeed(0.5)
     ]
   };
 
@@ -1382,9 +1382,9 @@ pub mod list {
     max_health: 600.0,
     reinforced: true,
     buffs: &[
-      (Buff::MaxRepair, 0.05),
-      (Buff::RepairSpeed, 0.1),
-      (Buff::RepairTeamMoveSpeed, 0.3)
+      Buff::MaxRepair(0.05),
+      Buff::RepairSpeed(0.1),
+      Buff::RepairTeamMoveSpeed(0.3)
     ]
   };
 
@@ -1428,7 +1428,7 @@ pub mod list {
     max_health: 75.0,
     reinforced: false,
     buffs: &[
-      (Buff::RadarSignature, 0.1)
+      Buff::RadarSignature(0.1)
     ]
   };
 
@@ -1454,7 +1454,7 @@ pub mod list {
     max_health: 75.0,
     reinforced: false,
     buffs: &[
-      (Buff::RadarSignature, 0.1)
+      Buff::RadarSignature(0.1)
     ]
   };
 
@@ -1480,7 +1480,7 @@ pub mod list {
     max_health: 75.0,
     reinforced: false,
     buffs: &[
-      (Buff::RadarSignature, 0.1)
+      Buff::RadarSignature(0.1)
     ]
   };
 
@@ -1557,7 +1557,7 @@ pub mod list {
     max_health: 75.0,
     reinforced: false,
     buffs: &[
-      (Buff::RadarSignature, 0.1)
+      Buff::RadarSignature(0.1)
     ]
   };
 
@@ -1617,9 +1617,9 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::CooldownTimeBeam, -0.2),
-      (Buff::CooldownTimeEnergy, -0.2),
-      (Buff::ReloadTimeEnergy, -0.2)
+      Buff::CooldownTimeBeam(-0.2),
+      Buff::CooldownTimeEnergy(-0.2),
+      Buff::ReloadTimeEnergy(-0.2)
     ]
   };
 
@@ -1675,10 +1675,10 @@ pub mod list {
     max_health: 250.0,
     reinforced: false,
     buffs: &[
-      (Buff::AngularThrust, -0.2),
-      (Buff::FlankDamageProbability, -0.15),
-      (Buff::TopSpeed, 0.2),
-      (Buff::TurnRate, -0.15)
+      Buff::AngularThrust(-0.2),
+      Buff::FlankDamageProbability(-0.15),
+      Buff::TopSpeed(0.2),
+      Buff::TurnRate(-0.15)
     ]
   };
 
@@ -1698,9 +1698,9 @@ pub mod list {
     max_health: 250.0,
     reinforced: false,
     buffs: &[
-      (Buff::AngularThrust, 0.3),
-      (Buff::TopSpeed, -0.075),
-      (Buff::TurnRate, 0.4)
+      Buff::AngularThrust(0.3),
+      Buff::TopSpeed(-0.075),
+      Buff::TurnRate(0.4)
     ]
   };
 
@@ -1720,9 +1720,9 @@ pub mod list {
     max_health: 250.0,
     reinforced: false,
     buffs: &[
-      (Buff::FlankDamageProbability, 0.5),
-      (Buff::LinearThrust, 0.3),
-      (Buff::RadarSignature, 0.2)
+      Buff::FlankDamageProbability(0.5),
+      Buff::LinearThrust(0.3),
+      Buff::RadarSignature(0.2)
     ]
   };
 
@@ -1742,10 +1742,10 @@ pub mod list {
     max_health: 200.0,
     reinforced: false,
     buffs: &[
-      (Buff::AngularThrust, -0.1),
-      (Buff::LinearThrust, -0.25),
-      (Buff::RadarSignature, -0.25),
-      (Buff::TopSpeed, -0.15)
+      Buff::AngularThrust(-0.1),
+      Buff::LinearThrust(-0.25),
+      Buff::RadarSignature(-0.25),
+      Buff::TopSpeed(-0.15)
     ]
   };
 
@@ -1801,10 +1801,10 @@ pub mod list {
     max_health: 1000.0,
     reinforced: false,
     buffs: &[
-      (Buff::AngularThrust, -0.2),
-      (Buff::FlankDamageProbability, -0.15),
-      (Buff::TopSpeed, 0.15),
-      (Buff::TurnRate, -0.2)
+      Buff::AngularThrust(-0.2),
+      Buff::FlankDamageProbability(-0.15),
+      Buff::TopSpeed(0.15),
+      Buff::TurnRate(-0.2)
     ]
   };
 
@@ -1824,9 +1824,9 @@ pub mod list {
     max_health: 1000.0,
     reinforced: false,
     buffs: &[
-      (Buff::AngularThrust, 0.4),
-      (Buff::TopSpeed, -0.1),
-      (Buff::TurnRate, 0.45)
+      Buff::AngularThrust(0.4),
+      Buff::TopSpeed(-0.1),
+      Buff::TurnRate(0.45)
     ]
   };
 
@@ -1846,9 +1846,9 @@ pub mod list {
     max_health: 1000.0,
     reinforced: false,
     buffs: &[
-      (Buff::FlankDamageProbability, 0.5),
-      (Buff::LinearThrust, 0.3),
-      (Buff::RadarSignature, 0.25)
+      Buff::FlankDamageProbability(0.5),
+      Buff::LinearThrust(0.3),
+      Buff::RadarSignature(0.25)
     ]
   };
 
@@ -1904,8 +1904,8 @@ pub mod list {
     max_health: 150.0,
     reinforced: false,
     buffs: &[
-      (Buff::BurstDurationBeam, -0.05),
-      (Buff::DamageMultiplierBeam, 0.25)
+      Buff::BurstDurationBeam(-0.05),
+      Buff::DamageMultiplierBeam(0.25)
     ]
   };
 
@@ -1925,7 +1925,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::Spread, -0.3)
+      Buff::Spread(-0.3)
     ]
   };
 
@@ -1998,7 +1998,7 @@ pub mod list {
     max_health: 150.0,
     reinforced: false,
     buffs: &[
-      (Buff::RadarSignature, 0.1)
+      Buff::RadarSignature(0.1)
     ]
   };
 
@@ -2132,7 +2132,7 @@ pub mod list {
     max_health: 75.0,
     reinforced: false,
     buffs: &[
-      (Buff::CatastrophicEventProbCellLauncher, -0.5)
+      Buff::CatastrophicEventProbCellLauncher(-0.5)
     ]
   };
 
@@ -2238,7 +2238,7 @@ pub mod list {
     max_health: 75.0,
     reinforced: false,
     buffs: &[
-      (Buff::CatastrophicEventProbMagazine, -0.5)
+      Buff::CatastrophicEventProbMagazine(-0.5)
     ]
   };
 
@@ -2258,7 +2258,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::MissileProgrammingSpeed, 0.35)
+      Buff::MissileProgrammingSpeed(0.35)
     ]
   };
 
@@ -2278,7 +2278,7 @@ pub mod list {
     max_health: 80.0,
     reinforced: false,
     buffs: &[
-      (Buff::MissileProgrammingChannels, 1.0)
+      Buff::MissileProgrammingChannels(1)
     ]
   };
 
@@ -2298,7 +2298,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::MissileProgrammingChannels, 2.0)
+      Buff::MissileProgrammingChannels(2)
     ]
   };
 
@@ -2750,11 +2750,11 @@ pub mod list {
     max_health: 40.0,
     reinforced: false,
     buffs: &[
-      (Buff::CasemateElevationRate, 0.15),
-      (Buff::CasemateTraverseRate, 0.15),
-      (Buff::ElevationRate, 0.2),
-      (Buff::Spread, -0.075),
-      (Buff::TraverseRate, 0.25)
+      Buff::CasemateElevationRate(0.15),
+      Buff::CasemateTraverseRate(0.15),
+      Buff::ElevationRate(0.2),
+      Buff::Spread(-0.075),
+      Buff::TraverseRate(0.25)
     ]
   };
 
@@ -2864,7 +2864,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::PowerplantEfficiency, 0.2)
+      Buff::PowerplantEfficiency(0.2)
     ]
   };
 
@@ -3092,7 +3092,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::RecycleTime, -0.25), (Buff::RecycleTimeEnergy, -0.25)
+      Buff::RecycleTime(-0.25), Buff::RecycleTimeEnergy(-0.25)
     ]
   };
 
@@ -3135,7 +3135,7 @@ pub mod list {
     max_health: 75.0,
     reinforced: false,
     buffs: &[
-      (Buff::CatastrophicEventProbReactor, -0.33)
+      Buff::CatastrophicEventProbReactor(-0.33)
     ]
   };
 
@@ -3220,7 +3220,7 @@ pub mod list {
     max_health: 50.0,
     reinforced: false,
     buffs: &[
-      (Buff::FlankDamageProbability, -0.2)
+      Buff::FlankDamageProbability(-0.2)
     ]
   };
 
@@ -3240,8 +3240,8 @@ pub mod list {
     max_health: 50.0,
     reinforced: false,
     buffs: &[
-      (Buff::IdentificationDifficulty, 1.0),
-      (Buff::Sensitivity, -0.1)
+      Buff::IdentificationDifficulty(1.0),
+      Buff::Sensitivity(-0.1)
     ]
   };
 
@@ -3284,9 +3284,9 @@ pub mod list {
     max_health: 75.0,
     reinforced: false,
     buffs: &[
-      (Buff::CooldownTimeBeam, -0.12),
-      (Buff::CooldownTimeEnergy, -0.12),
-      (Buff::ReloadTimeEnergy, -0.12)
+      Buff::CooldownTimeBeam(-0.12),
+      Buff::CooldownTimeEnergy(-0.12),
+      Buff::ReloadTimeEnergy(-0.12)
     ]
   };
 
@@ -3306,8 +3306,8 @@ pub mod list {
     max_health: 40.0,
     reinforced: false,
     buffs: &[
-      (Buff::PowerplantEfficiency, 0.1),
-      (Buff::RadarSignature, 0.05)
+      Buff::PowerplantEfficiency(0.1),
+      Buff::RadarSignature(0.05)
     ]
   };
 
@@ -3327,7 +3327,7 @@ pub mod list {
     max_health: 150.0,
     reinforced: false,
     buffs: &[
-      (Buff::RepairSpeed, 0.3)
+      Buff::RepairSpeed(0.3)
     ]
   };
 
@@ -3347,7 +3347,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::MissileProgrammingSpeed, 0.6)
+      Buff::MissileProgrammingSpeed(0.6)
     ]
   };
 
@@ -3367,7 +3367,7 @@ pub mod list {
     max_health: 40.0,
     reinforced: false,
     buffs: &[
-      (Buff::JammingLobAccuracy, -0.3)
+      Buff::JammingLobAccuracy(-0.3)
     ]
   };
 
@@ -3387,7 +3387,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      (Buff::FlankDamageProbability, -0.2), (Buff::TopSpeed, 0.25)
+      Buff::FlankDamageProbability(-0.2), Buff::TopSpeed(0.25)
     ]
   };
 
@@ -3407,7 +3407,7 @@ pub mod list {
     max_health: 40.0,
     reinforced: false,
     buffs: &[
-      (Buff::TransmitPower, 0.25)
+      Buff::TransmitPower(0.25)
     ]
   };
 
@@ -3570,7 +3570,7 @@ pub mod list {
     max_health: 40.0,
     reinforced: false,
     buffs: &[
-      (Buff::PositionalError, -0.2), (Buff::VelocityError, -0.2)
+      Buff::PositionalError(-0.2), Buff::VelocityError(-0.2)
     ]
   };
 

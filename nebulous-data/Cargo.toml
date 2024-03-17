@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bytemuck = { version = "1.14.3", features = ["derive", "min_const_generics"] }
+float-ord = { version = "0.3.2" }
 itertools = { version = "0.12.1" }
 nebulous-xml = { path = "../nebulous-xml" }
 thiserror = { version = "1.0" }
