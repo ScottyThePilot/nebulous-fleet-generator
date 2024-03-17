@@ -130,7 +130,8 @@ pub enum Direction {
   Up, Down, Left, Right, Fore, Aft
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[allow(missing_copy_implementations)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Buffs {
   pub angular_thrust: f32,
   pub burst_duration_beam: f32,

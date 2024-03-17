@@ -1,6 +1,6 @@
 use super::hulls::HullKey;
 use super::munitions::{MunitionFamily, WeaponRole};
-use super::{Buff, Faction, MissileSize};
+use super::{Buff, Buffs, Faction, MissileSize};
 use crate::utils::{ContiguousExt, Size};
 
 use bytemuck::Contiguous;
@@ -105,6 +105,31 @@ impl Component {
       component.crew * tiling_quantity(socket_size, self.size) as isize
     } else {
       component.crew
+    }
+  }
+
+  pub const fn munition_family(self) -> Option<MunitionFamily> {
+    match self.variant {
+      Some(ComponentVariant::WeaponMissileBank { munition_family, .. }) => Some(munition_family),
+      Some(ComponentVariant::WeaponMissileLauncher { munition_family, .. }) => Some(munition_family),
+      Some(ComponentVariant::WeaponProjectile { munition_family, .. }) => munition_family,
+      _ => None
+    }
+  }
+
+  pub fn fire_rate(self, buffs: &Buffs) -> Option<f32> {
+    if let Some(ComponentVariant::WeaponProjectile { is_energy, reload_time, autoloader, .. }) = self.variant {
+      let reload_time_buff = if is_energy { buffs.reload_time_energy } else { buffs.reload_time };
+      let recycle_time_buff = if is_energy { buffs.recycle_time_energy } else { buffs.recycle_time };
+
+      let reload_time = reload_time * (reload_time_buff + 1.0);
+      let autoloader = autoloader.map(|Autoloader { capacity, recycle_time }| {
+        Autoloader { capacity, recycle_time: recycle_time * (recycle_time_buff + 1.0) }
+      });
+
+      Some(fire_rate(reload_time, autoloader))
+    } else {
+      None
     }
   }
 }
@@ -219,7 +244,8 @@ pub enum ComponentVariant {
     integrated_fire_control: Option<FireControl>,
     optical_backup: bool,
     role: WeaponRole,
-    munition_family: MunitionFamily,
+    /// If `None`, then this weapon consumes no ammunition.
+    munition_family: Option<MunitionFamily>,
     reload_time: f32,
     autoloader: Option<Autoloader>
   }
@@ -919,7 +945,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical100mm,
+      munition_family: Some(MunitionFamily::BallisticChemical100mm),
       reload_time: 30.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(24),
@@ -949,7 +975,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical250mm,
+      munition_family: Some(MunitionFamily::BallisticChemical250mm),
       reload_time: 70.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(8),
@@ -979,7 +1005,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical250mm,
+      munition_family: Some(MunitionFamily::BallisticChemical250mm),
       reload_time: 70.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(15),
@@ -1009,7 +1035,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical450mm,
+      munition_family: Some(MunitionFamily::BallisticChemical450mm),
       reload_time: 90.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(8),
@@ -1039,7 +1065,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic400mmPlasma,
+      munition_family: Some(MunitionFamily::BallisticMagnetic400mmPlasma),
       reload_time: 12.0,
       autoloader: None
     }),
@@ -1066,7 +1092,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical600mm,
+      munition_family: Some(MunitionFamily::BallisticChemical600mm),
       reload_time: 18.0,
       autoloader: None
     }),
@@ -1159,7 +1185,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: false,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::StandardMissile,
+      munition_family: MunitionFamily::StandardMissileSize3,
       missile_size: MissileSize::Size3,
       cells: MissileLauncherCells::Function {
         count_per_group: 2,
@@ -2180,7 +2206,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: false,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::StandardMissile,
+      munition_family: MunitionFamily::StandardMissileSize2,
       missile_size: MissileSize::Size2,
       load_time: 45.0
     }),
@@ -2205,7 +2231,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: false,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::StandardMissile,
+      munition_family: MunitionFamily::StandardMissileSize3,
       missile_size: MissileSize::Size3,
       load_time: 60.0
     }),
@@ -2315,7 +2341,7 @@ pub mod list {
       }),
       optical_backup: false,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticChemical20mm,
+      munition_family: Some(MunitionFamily::BallisticChemical20mm),
       reload_time: 60.0 / 2400.0,
       autoloader: None
     }),
@@ -2342,7 +2368,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticChemical50mmFlak,
+      munition_family: Some(MunitionFamily::BallisticChemical50mmFlak),
       reload_time: 3.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(15),
@@ -2372,7 +2398,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticChemical50mmFlak,
+      munition_family: Some(MunitionFamily::BallisticChemical50mmFlak),
       reload_time: 1.5,
       autoloader: Some(Autoloader {
         capacity: zsize!(16),
@@ -2402,7 +2428,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic300mmRailgun,
+      munition_family: Some(MunitionFamily::BallisticMagnetic300mmRailgun),
       reload_time: 15.0,
       autoloader: None
     }),
@@ -2483,7 +2509,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical120mm,
+      munition_family: Some(MunitionFamily::BallisticChemical120mm),
       reload_time: 5.5,
       autoloader: None
     }),
@@ -2510,7 +2536,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical120mm,
+      munition_family: Some(MunitionFamily::BallisticChemical120mm),
       reload_time: 4.0,
       autoloader: None
     }),
@@ -2537,7 +2563,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical250mm,
+      munition_family: Some(MunitionFamily::BallisticChemical250mm),
       reload_time: 10.0,
       autoloader: None
     }),
@@ -2564,7 +2590,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical250mm,
+      munition_family: Some(MunitionFamily::BallisticChemical250mm),
       reload_time: 13.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(3),
@@ -2594,7 +2620,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical450mm,
+      munition_family: Some(MunitionFamily::BallisticChemical450mm),
       reload_time: 20.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(2),
@@ -2624,7 +2650,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticChemical450mm,
+      munition_family: Some(MunitionFamily::BallisticChemical450mm),
       reload_time: 20.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(3),
@@ -2654,7 +2680,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic300mmRailgun,
+      munition_family: Some(MunitionFamily::BallisticMagnetic300mmRailgun),
       reload_time: 30.0,
       autoloader: None
     }),
@@ -2714,7 +2740,7 @@ pub mod list {
       }),
       optical_backup: true,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticMagnetic15mm,
+      munition_family: Some(MunitionFamily::BallisticMagnetic15mm),
       reload_time: 6.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(3),
@@ -2771,7 +2797,7 @@ pub mod list {
       }),
       optical_backup: false,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticChemical20mm,
+      munition_family: Some(MunitionFamily::BallisticChemical20mm),
       reload_time: 60.0 / 4800.0,
       autoloader: None
     }),
@@ -2798,7 +2824,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::BallisticChemical50mmFlak,
+      munition_family: Some(MunitionFamily::BallisticChemical50mmFlak),
       reload_time: 0.33,
       autoloader: Some(Autoloader {
         capacity: zsize!(100),
@@ -2831,7 +2857,7 @@ pub mod list {
       }),
       optical_backup: false,
       role: WeaponRole::Defensive,
-      munition_family: MunitionFamily::Infinite,
+      munition_family: None,
       reload_time: 7.0,
       autoloader: None
     }),
@@ -3421,7 +3447,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical100mm,
+      munition_family: Some(MunitionFamily::BallisticChemical100mm),
       reload_time: 15.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(4),
@@ -3451,7 +3477,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::BallisticChemical100mm,
+      munition_family: Some(MunitionFamily::BallisticChemical100mm),
       reload_time: 30.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(16),
@@ -3481,7 +3507,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic400mmPlasma,
+      munition_family: Some(MunitionFamily::BallisticMagnetic400mmPlasma),
       reload_time: 40.0,
       autoloader: Some(Autoloader {
         capacity: zsize!(8),
@@ -3511,7 +3537,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: true,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::BallisticMagnetic500mmMassDriver,
+      munition_family: Some(MunitionFamily::BallisticMagnetic500mmMassDriver),
       reload_time: 25.0,
       autoloader: None
     }),
@@ -3537,7 +3563,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: false,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::StandardMissile,
+      munition_family: MunitionFamily::StandardMissileSize3,
       missile_size: MissileSize::Size3,
       cells: MissileLauncherCells::Constant { count: 6 }
     }),
@@ -3583,7 +3609,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: false,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::StandardMissile,
+      munition_family: MunitionFamily::StandardMissileSize1,
       missile_size: MissileSize::Size1,
       cells: MissileLauncherCells::Constant { count: 23 }
     }),
@@ -3609,7 +3635,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: false,
       role: WeaponRole::DualPurpose,
-      munition_family: MunitionFamily::StandardMissile,
+      munition_family: MunitionFamily::StandardMissileSize1,
       missile_size: MissileSize::Size1,
       cells: MissileLauncherCells::Constant { count: 46 }
     }),
@@ -3635,7 +3661,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: false,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::StandardMissile,
+      munition_family: MunitionFamily::StandardMissileSize2,
       missile_size: MissileSize::Size2,
       cells: MissileLauncherCells::Function {
         count_per_group: 8,
@@ -3670,7 +3696,7 @@ pub mod list {
       integrated_fire_control: None,
       optical_backup: false,
       role: WeaponRole::Offensive,
-      munition_family: MunitionFamily::StandardMissile,
+      munition_family: MunitionFamily::StandardMissileSize3,
       missile_size: MissileSize::Size3,
       cells: MissileLauncherCells::Function {
         count_per_group: 2,

@@ -6,9 +6,9 @@ extern crate serde;
 extern crate singlefile;
 extern crate singlefile_formats;
 
-pub mod generator;
-pub mod parameters;
-pub mod state;
+mod generator;
+mod parameters;
+mod state;
 mod utils;
 
 use nebulous_data::data::Faction;

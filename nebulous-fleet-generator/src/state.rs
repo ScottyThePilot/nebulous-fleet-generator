@@ -2,12 +2,13 @@ use crate::parameters::*;
 
 use nebulous_data::data::{Buff, Buffs, Faction};
 use nebulous_data::data::hulls::{HullKey, HullSocket};
-use nebulous_data::data::components::ComponentKey;
-use nebulous_data::data::munitions::MunitionKey;
+use nebulous_data::data::components::{ComponentKey, ComponentVariant};
+use nebulous_data::data::munitions::{MunitionKey, MunitionFamily};
 use nebulous_data::prelude::*;
 
 use std::cmp::Reverse;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 use std::fmt;
 
 
@@ -15,7 +16,7 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct FleetState {
   faction: Faction,
-  ships: Vec<ShipState>
+  ships: Vec<Arc<ShipState>>
 }
 
 impl FleetState {
@@ -27,7 +28,7 @@ impl FleetState {
     self.faction
   }
 
-  pub fn ships(&self) -> &[ShipState] {
+  pub fn ships(&self) -> &[Arc<ShipState>] {
     &self.ships
   }
 
@@ -36,7 +37,7 @@ impl FleetState {
   }
 
   pub fn append_ship(mut self, ship: ShipState) -> Self {
-    self.ships.push(ship);
+    self.ships.push(Arc::new(ship));
     self.ships.sort_unstable_by_key(|ship| {
       (Reverse(ship.hull_key()), ship.purpose.clone())
     });
@@ -44,10 +45,16 @@ impl FleetState {
   }
 
   pub fn put_ship_component(mut self, ship: usize, component: usize, value: ComponentState) -> Self {
-    let ship = &mut self.ships[ship];
-    ship.hull_state.replace_ship_component(component, value);
-    ship.cache.update_from(&ship.hull_state);
+    let ship = Arc::make_mut(&mut self.ships[ship]);
+    ship.inner.replace_ship_component(component, value);
+    ship.cache.update_from(&ship.inner);
     self
+  }
+
+  pub fn iter_ship_vacant_components(&self) -> impl Iterator<Item = (usize, usize)> + DoubleEndedIterator + Clone + '_ {
+    self.ships.iter().enumerate().flat_map(|(i, ship)| {
+      ship.iter_vacant_components().map(move |j| (i, j))
+    })
   }
 
   pub fn similar(&self, other: &Self) -> bool {
@@ -61,7 +68,7 @@ impl FleetState {
 pub struct ShipState {
   purpose: PurposeName,
   point_budget: usize,
-  hull_state: HullState,
+  inner: ShipStateInner,
   cache: ShipStateCache
 }
 
@@ -69,17 +76,17 @@ impl ShipState {
   pub fn new(hull_key: HullKey, purpose: PurposeName, point_budget: usize) -> Self {
     ShipState {
       purpose, point_budget,
-      hull_state: HullState::new(hull_key),
+      inner: ShipStateInner::new(hull_key),
       cache: ShipStateCache::default()
     }
   }
 
   pub const fn hull_key(&self) -> HullKey {
-    self.hull_state.hull_key
+    self.inner.hull_key
   }
 
   pub const fn components(&self) -> &[Option<ComponentState>] {
-    &self.hull_state.components
+    &self.inner.components
   }
 
   pub const fn purpose(&self) -> &PurposeName {
@@ -90,17 +97,25 @@ impl ShipState {
     self.point_budget
   }
 
+  pub fn crew(&self) -> isize {
+    self.cache.crew()
+  }
+
+  pub fn power(&self) -> f32 {
+    self.cache.power()
+  }
+
   pub fn similar(&self, other: &Self) -> bool {
     self.hull_key() == other.hull_key() &&
     self.purpose() == other.purpose()
   }
 
   pub fn iter_component_states(&self) -> impl Iterator<Item = &ComponentState> + DoubleEndedIterator + Clone {
-    self.hull_state.iter_component_states()
+    self.inner.iter_component_states()
   }
 
   pub fn iter_vacant_components(&self) -> impl Iterator<Item = usize> + DoubleEndedIterator + Clone + '_ {
-    self.hull_state.iter_vacant_components()
+    self.inner.iter_vacant_components()
   }
 }
 
@@ -109,24 +124,24 @@ impl fmt::Display for ShipState {
     write!(
       f,
       "{} ({:?}, {} components)",
-      self.hull_state.hull_key.hull().name,
+      self.inner.hull_key.hull().name,
       self.purpose,
-      self.hull_state.components.len()
+      self.inner.components.len()
     )
   }
 }
 
 #[derive(Debug, Clone)]
-struct HullState {
+struct ShipStateInner {
   hull_key: HullKey,
   components: Box<[Option<ComponentState>]>
 }
 
-impl HullState {
+impl ShipStateInner {
   fn new(hull_key: HullKey) -> Self {
     let sockets = hull_key.hull().sockets.len();
     let components = (0..sockets).map(|_| None).collect();
-    HullState { hull_key, components }
+    ShipStateInner { hull_key, components }
   }
 
   fn replace_ship_component(&mut self, component: usize, value: ComponentState) -> Option<ComponentState> {
@@ -134,8 +149,7 @@ impl HullState {
   }
 
   fn iter_vacant_components(&self) -> impl Iterator<Item = usize> + DoubleEndedIterator + Clone + '_ {
-    self.components.iter().enumerate()
-      .filter_map(|(i, c)| c.is_none().then_some(i))
+    self.components.iter().enumerate().filter_map(|(i, c)| c.is_none().then_some(i))
   }
 
   fn iter_sockets_maybe(&self) -> impl Iterator<Item = (&Option<ComponentState>, &'static HullSocket)> + DoubleEndedIterator + Clone {
@@ -171,6 +185,7 @@ impl HullState {
 struct ShipStateCache {
   buffs: Box<Buffs>,
   component_quantities: BTreeMap<ComponentKey, usize>,
+  munition_families: HashMap<MunitionFamily, Option<f32>>,
   crew_complement: usize,
   crew_assigned: usize,
   power_production: f32,
@@ -178,28 +193,46 @@ struct ShipStateCache {
 }
 
 impl ShipStateCache {
+  /// Net crew complement, i.e. this will be positive when there are sufficient crew,
+  /// and negative when there are insufficient crew.
   fn crew(&self) -> isize {
     self.crew_complement as isize - self.crew_assigned as isize
   }
 
+  /// Net power production, i.e. this will be positive when there is sufficient power,
+  /// and negative when there is insufficient power.
   fn power(&self) -> f32 {
     self.power_production * (self.buffs.powerplant_efficiency + 1.0) - self.power_consumption
   }
 
-  fn update_from(&mut self, hull_state: &HullState) {
-    let crew_complement = hull_state.hull_key.hull().base_crew_complement;
-
-    self.crew_complement = crew_complement;
+  fn clear(&mut self) {
+    //self.buffs = Box::new(Buffs::default());
+    self.component_quantities.clear();
+    self.munition_families.clear();
+    self.crew_complement = 0;
     self.crew_assigned = 0;
     self.power_production = 0.0;
     self.power_consumption = 0.0;
+  }
 
-    self.buffs = Box::new(hull_state.iter_buffs().collect());
+  fn update_from(&mut self, inner: &ShipStateInner) {
+    self.clear();
 
-    self.component_quantities.clear();
-    for (component_state, hull_socket) in hull_state.iter_sockets() {
+    self.buffs = Box::new(inner.iter_buffs().collect());
+
+    self.crew_complement += inner.hull_key.hull().base_crew_complement;
+
+    for (component_state, hull_socket) in inner.iter_sockets() {
       let component = component_state.component_key.component();
+
       *self.component_quantities.entry(component_state.component_key).or_default() += 1;
+
+      if let Some(munition_family) = component.munition_family() {
+        let entry = self.munition_families.entry(munition_family).or_insert(None);
+        if let Some(fire_rate) = component.fire_rate(&self.buffs) {
+          *entry.get_or_insert(0.0) += fire_rate;
+        };
+      };
 
       match component.crew(hull_socket.size) {
         crew if crew > 0 => self.crew_complement += crew as usize,
@@ -219,7 +252,7 @@ impl ShipStateCache {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentState {
   component_key: ComponentKey,
-  magazine_contents: BTreeMap<MunitionState, usize>
+  magazine_contents: Option<BTreeMap<MunitionState, usize>>
 }
 
 impl ComponentState {
@@ -227,8 +260,14 @@ impl ComponentState {
     self.component_key
   }
 
-  pub const fn magazine_contents(&self) -> &BTreeMap<MunitionState, usize> {
-    &self.magazine_contents
+  pub const fn magazine_contents(&self) -> Option<&BTreeMap<MunitionState, usize>> {
+    self.magazine_contents.as_ref()
+  }
+
+  pub fn get_munition_quantity(&mut self, munition: MunitionState) -> &mut usize {
+    self.magazine_contents
+      .get_or_insert_with(BTreeMap::new)
+      .entry(munition).or_default()
   }
 }
 
@@ -250,4 +289,8 @@ pub fn iter_socket_components(hull_key: HullKey, socket: usize) -> impl Iterator
     let component = component_key.component();
     component.is_usable_on(hull_key) && component.can_fit_in(socket.size)
   })
+}
+
+fn merge_opt<T: Copy>(lhs: &mut Option<T>, rhs: Option<T>, f: impl FnOnce(T, T) -> T) {
+  *lhs = Option::zip(*lhs, rhs).map(|(lhs, rhs)| f(lhs, rhs))
 }

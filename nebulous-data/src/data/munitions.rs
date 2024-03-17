@@ -79,11 +79,12 @@ pub enum MunitionFamily {
   BallisticChemical450mm,
   BallisticMagnetic500mmMassDriver,
   BallisticChemical600mm,
-  StandardMissile,
+  StandardMissileSize1,
+  StandardMissileSize2,
+  StandardMissileSize3,
   ContainerMissile,
   LoiteringMine,
-  UnguidedRocket,
-  Infinite
+  UnguidedRocket
 }
 
 impl MunitionFamily {
@@ -716,7 +717,7 @@ pub mod list {
     name: "EA12 Chaff Decoy",
     save_key: "Stock/EA12 Chaff Decoy",
     role: WeaponRole::Decoy,
-    family: MunitionFamily::StandardMissile,
+    family: MunitionFamily::StandardMissileSize1,
     point_cost: 1,
     point_division: 1,
     storage_volume: 4.0,
@@ -731,7 +732,7 @@ pub mod list {
     name: "EA20 Flare Decoy",
     save_key: "Stock/EA20 Flare Decoy",
     role: WeaponRole::Decoy,
-    family: MunitionFamily::StandardMissile,
+    family: MunitionFamily::StandardMissileSize1,
     point_cost: 1,
     point_division: 1,
     storage_volume: 4.0,
@@ -746,7 +747,7 @@ pub mod list {
     name: "EA99 Active Decoy",
     save_key: "Stock/EA99 Active Decoy",
     role: WeaponRole::Decoy,
-    family: MunitionFamily::StandardMissile,
+    family: MunitionFamily::StandardMissileSize1,
     point_cost: 8,
     point_division: 1,
     storage_volume: 4.0,
