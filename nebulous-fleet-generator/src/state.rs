@@ -2,12 +2,12 @@ use crate::parameters::*;
 
 use nebulous_data::data::{Buff, Buffs, Faction};
 use nebulous_data::data::hulls::{HullKey, HullSocket};
-use nebulous_data::data::components::{ComponentKey, ComponentVariant};
+use nebulous_data::data::components::ComponentKey;
 use nebulous_data::data::munitions::{MunitionKey, MunitionFamily};
 use nebulous_data::prelude::*;
 
 use std::cmp::Reverse;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::fmt;
 
@@ -184,7 +184,7 @@ impl ShipStateInner {
 #[derive(Debug, Clone, Default)]
 struct ShipStateCache {
   buffs: Box<Buffs>,
-  component_quantities: BTreeMap<ComponentKey, usize>,
+  components: BTreeMap<ComponentKey, ComponentStateCache>,
   munition_families: HashMap<MunitionFamily, Option<f32>>,
   crew_complement: usize,
   crew_assigned: usize,
@@ -207,7 +207,7 @@ impl ShipStateCache {
 
   fn clear(&mut self) {
     //self.buffs = Box::new(Buffs::default());
-    self.component_quantities.clear();
+    self.components.clear();
     self.munition_families.clear();
     self.crew_complement = 0;
     self.crew_assigned = 0;
@@ -225,7 +225,8 @@ impl ShipStateCache {
     for (component_state, hull_socket) in inner.iter_sockets() {
       let component = component_state.component_key.component();
 
-      *self.component_quantities.entry(component_state.component_key).or_default() += 1;
+      let component_entry = self.components.entry(component_state.component_key).or_default();
+      component_entry.quantity += 1;
 
       if let Some(munition_family) = component.munition_family() {
         let entry = self.munition_families.entry(munition_family).or_insert(None);
@@ -249,6 +250,11 @@ impl ShipStateCache {
   }
 }
 
+#[derive(Debug, Clone, Default)]
+struct ComponentStateCache {
+  quantity: usize
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentState {
   component_key: ComponentKey,
@@ -260,8 +266,20 @@ impl ComponentState {
     self.component_key
   }
 
+  pub fn cost(&self) -> usize {
+    self.iter_magazine_contents()
+      .map(|(munition_state, quantity)| munition_state.cost(quantity))
+      .chain(std::iter::once(self.component_key.component().point_cost))
+      .sum::<usize>()
+  }
+
   pub const fn magazine_contents(&self) -> Option<&BTreeMap<MunitionState, usize>> {
     self.magazine_contents.as_ref()
+  }
+
+  pub fn iter_magazine_contents(&self) -> impl Iterator<Item = (&MunitionState, usize)> {
+    self.magazine_contents.iter().flatten()
+      .map(|(munition_state, &quantity)| (munition_state, quantity))
   }
 
   pub fn get_munition_quantity(&mut self, munition: MunitionState) -> &mut usize {
@@ -271,9 +289,15 @@ impl ComponentState {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MunitionState {
   Munition(MunitionKey)
+}
+
+impl MunitionState {
+  pub fn cost(&self, quantity: usize) -> usize {
+    todo!()
+  }
 }
 
 /// Iterates through hulls available to the given faction.

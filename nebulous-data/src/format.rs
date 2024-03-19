@@ -166,7 +166,7 @@ impl DeserializeElement for Ship {
     let socket_map = socket_map.ok_or(xml::Error::missing_element("SocketMap"))?.children.deserialize::<Vec<HullSocket>>()?;
     let weapon_groups = weapon_groups.ok_or(xml::Error::missing_element("WeaponGroups"))?.children.deserialize::<Vec<WeaponGroup>>()?;
     let initial_formation = initial_formation.map(InitialFormation::deserialize_element).transpose()?;
-    let missile_types = missile_types.ok_or(xml::Error::missing_element("TemplateMissileTypes"))?.children.deserialize::<Vec<MissileTemplate>>()?;
+    let missile_types = missile_types.map(|element| element.children.deserialize::<Vec<MissileTemplate>>()).transpose()?.unwrap_or_else(Vec::new);
 
     Ok(Ship { key, name, cost, callsign, number, hull_type, hull_config, socket_map, weapon_groups, initial_formation, missile_types })
   }
@@ -701,8 +701,9 @@ impl DeserializeElement for MissileComponent {
 
     let mode = mode.ok_or(xml::Error::missing_element("Mode"))
       .and_then(|element| element.children.deserialize::<SeekerMode>());
-    let reject_unvalidated = reject_unvalidated.ok_or(xml::Error::missing_element("RejectUnvalidated"))
-      .and_then(|element| element.children.deserialize::<bool>());
+    let reject_unvalidated = reject_unvalidated
+      .map(|element| element.children.deserialize::<bool>())
+      .transpose()?.unwrap_or(false);
     let target_type = target_type.ok_or(xml::Error::missing_element("TargetType"))
       .and_then(|element| element.children.deserialize::<AntiRadiationTargetType>());
     let detect_pd_targets = detect_pd_targets.ok_or(xml::Error::missing_element("DetectPDTargets"))
@@ -726,7 +727,7 @@ impl DeserializeElement for MissileComponent {
     let settings = xsi_type.as_deref().map(|xsi_type| match xsi_type {
       "ActiveSeekerSettings" => Ok(MissileComponentSettings::ActiveSeekerSettings {
         mode: mode?,
-        reject_unvalidated: reject_unvalidated?,
+        reject_unvalidated,
         detect_pd_targets: detect_pd_targets?
       }),
       "CommandSeekerSettings" => Ok(MissileComponentSettings::CommandSeekerSettings {
@@ -756,12 +757,12 @@ impl DeserializeElement for MissileComponent {
       }),
       "PassiveARHSeekerSettings" => Ok(MissileComponentSettings::PassiveARHSeekerSettings {
         mode: mode?,
-        reject_unvalidated: reject_unvalidated?,
+        reject_unvalidated,
         home_on_jam: target_type? == AntiRadiationTargetType::JammingOnly
       }),
       "PassiveSeekerSettings" => Ok(MissileComponentSettings::PassiveSeekerSettings {
         mode: mode?,
-        reject_unvalidated: reject_unvalidated?,
+        reject_unvalidated,
         detect_pd_targets: detect_pd_targets?
       }),
       _ => Err(FormatError::UnknownMissileSettingsType(xsi_type.into()))
