@@ -1,5 +1,8 @@
 use bytemuck::Contiguous;
 use itertools::Itertools;
+use nebulous_xml::uuid::Uuid;
+#[cfg(feature = "rand")]
+use rand::Rng;
 
 use std::io;
 use std::fmt;
@@ -7,6 +10,11 @@ use std::num::NonZeroU32 as z32;
 use std::ops::RangeInclusive;
 
 
+
+#[cfg(feature = "rand")]
+pub fn gen_uuid<R: Rng + ?Sized>(rng: &mut R) -> Uuid {
+  Uuid::from_bytes(rng.gen())
+}
 
 /// Produces an [`fmt::Display`]/[`fmt::Debug`] type given a closure to be executed as its body.
 pub fn anonymous_fmt_display<F>(f: F) -> impl fmt::Display + fmt::Debug

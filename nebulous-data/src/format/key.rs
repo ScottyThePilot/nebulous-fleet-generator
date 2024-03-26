@@ -1,7 +1,11 @@
-use std::fmt;
-use std::str::FromStr;
+#[cfg(feature = "rand")]
+use rand::distributions::{Distribution, Standard};
+#[cfg(feature = "rand")]
+use rand::Rng;
 
+use std::fmt;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
+use std::str::FromStr;
 
 
 
@@ -180,6 +184,13 @@ impl Not for Key {
 
   fn not(self) -> Self::Output {
     self.not()
+  }
+}
+
+#[cfg(feature = "rand")]
+impl Distribution<Key> for Standard {
+  fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Key {
+    Key::from_bytes(rng.gen::<KeyBytes>()).mask()
   }
 }
 

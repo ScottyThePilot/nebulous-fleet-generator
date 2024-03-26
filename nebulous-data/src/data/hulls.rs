@@ -1,9 +1,18 @@
-use super::components::ComponentKind;
-use super::{Buff, Direction, Faction};
+mod bulk_freighter;
+mod container_liner;
+
 use crate::format::key::Key;
 use crate::utils::{ContiguousExt, Size};
+use super::{Buff, Direction, Faction};
+use super::components::ComponentKind;
+pub use self::bulk_freighter::HullConfigBulkFreighter;
+pub use self::container_liner::HullConfigContainerLiner;
 
 use bytemuck::Contiguous;
+#[cfg(feature = "rand")]
+use rand::distributions::Distribution;
+#[cfg(feature = "rand")]
+use rand::Rng;
 
 use std::fmt;
 use std::str::FromStr;
@@ -26,7 +35,8 @@ pub struct Hull {
   pub base_crew_complement: usize,
   pub buffs: &'static [Buff],
   pub sockets: &'static [HullSocket],
-  pub socket_symmetries: &'static [(Key, Key)]
+  pub socket_symmetries: &'static [(Key, Key)],
+  pub config_template: Option<HullConfigTemplate>
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -122,6 +132,23 @@ impl fmt::Display for HullKey {
   }
 }
 
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+pub enum HullConfigTemplate {
+  BulkFreighter,
+  ContainerLiner
+}
+
+#[cfg(feature = "rand")]
+impl Distribution<crate::format::HullConfig> for HullConfigTemplate {
+  fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> crate::format::HullConfig {
+    match self {
+      Self::BulkFreighter => HullConfigBulkFreighter.sample(rng),
+      Self::ContainerLiner => HullConfigContainerLiner.sample(rng)
+    }
+  }
+}
+
 
 
 pub mod list {
@@ -163,7 +190,8 @@ pub mod list {
     socket_symmetries: &[
       (key!("IUdNSVZm2Eu9n3F5HnSAng"), key!("ZxY9ONYz80SiLNSObvjNzQ")),
       (key!("TSPPW9ECe06-MGzR1i0WvQ"), key!("MBOvGazj6UWpt2OOy44s7w"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const RAINES_FRIGATE: Hull = Hull {
@@ -201,7 +229,8 @@ pub mod list {
     ],
     socket_symmetries: &[
       (key!("V42tXibIR0e4u6riIHYZOw"), key!("p-m7ijS6ukuqzuBT5NE_lA"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const KEYSTONE_DESTROYER: Hull = Hull {
@@ -247,7 +276,8 @@ pub mod list {
     ],
     socket_symmetries: &[
       (key!("x21sadthgE2FtDWSJKINGQ"), key!("IxKwpY5d9EicYRRTMn8xVw"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const VAUXHALL_LIGHT_CRUISER: Hull = Hull {
@@ -299,7 +329,8 @@ pub mod list {
     socket_symmetries: &[
       (key!("RLHQUFf200uLZjKX5axkMw"), key!("uyPDg0tD3U6YKz18bVdkPg")),
       (key!("Xicf0TT7pEaFy_x1uk7ueQ"), key!("XTg1H1Popku5gxW8sei5XQ"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const AXFORD_HEAVY_CRUISER: Hull = Hull {
@@ -359,7 +390,8 @@ pub mod list {
       (key!("lYEQo4jJvEGxRqJa2MB25A"), key!("v9Sqa5DcCkibdi29AkakNg")),
       (key!("9qreGP2Iw0KwuloNpNFTSg"), key!("3MoeYUx1HUS6xNDBMsssig")),
       (key!("tyGXrucCjUe0FVyP1YDpUw"), key!("rXZhdtbK3EC8K_cu6-r_Xg"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const SOLOMON_BATTLESHIP: Hull = Hull {
@@ -430,7 +462,8 @@ pub mod list {
       (key!("csaNZW85vkO8uIQ9XDe1iw"), key!("R_Y-LTCc0kydl6L8Sq5Dmw")),
       (key!("eBG0UhrBiky4nUx81rPbLw"), key!("-gtO0aqGDEOH-Tm612wAoA")),
       (key!("M6NaSvLam06C-1DTggI99g"), key!("37oZ894X7kG2Dq0E5mEKDQ"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const SHUTTLE_CLIPPER: Hull = Hull {
@@ -461,7 +494,8 @@ pub mod list {
       HullSocket::module(key!("zUeDN4FpYEyyWHIhTIgZFg"), Size::new(2, 2, 2), 1.0),
       HullSocket::module(key!("uXJ_fvsZ3USAs1SpiTrZ1g"), Size::new(2, 2, 2), 1.0)
     ],
-    socket_symmetries: &[]
+    socket_symmetries: &[],
+    config_template: None
   };
 
   pub const TUGBOAT_CLIPPER: Hull = Hull {
@@ -496,7 +530,8 @@ pub mod list {
     ],
     socket_symmetries: &[
       (key!("KnFHQkb9uUe98IweLYf9wg"), key!("5kd20hGcxUuTlY-6JYaudA"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const CARGO_FEEDER_MONITOR: Hull = Hull {
@@ -535,7 +570,8 @@ pub mod list {
     ],
     socket_symmetries: &[
       (key!("gb6_3kWBY0KlEWeex3ruDg"), key!("_y-Bd-EWjUeMIrmzG3UxvQ"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const OCELLO_COMMAND_CRUISER: Hull = Hull {
@@ -589,7 +625,8 @@ pub mod list {
     socket_symmetries: &[
       (key!("4v5e01-gEUiTNnQJevNpGg"), key!("o78jebL2nkezXdHJ6xA3WA")),
       (key!("mP5XoHZ3Wk-DsFk3YLAxzg"), key!("xe7LNTrStUuS8PMCn6KYsQ"))
-    ]
+    ],
+    config_template: None
   };
 
   pub const BULK_FREIGHTER_LINE_SHIP: Hull = Hull {
@@ -650,7 +687,8 @@ pub mod list {
       (key!("t0T4CSAPnEq4rvHAVl84-Q"), key!("grYBjxIS3E--lmrqenuK8A")),
       (key!("8pltGexHAEyFL2ljOe0oMQ"), key!("tcQfj6XOHUWFSAx_W0cc1A")),
       (key!("Sb5-VSuwlkWpT6ViRiJ3vg"), key!("6ZiODnoXqkaNWvaqyGjnwg"))
-    ]
+    ],
+    config_template: Some(HullConfigTemplate::BulkFreighter)
   };
 
   pub const CONTAINER_LINER_LINE_SHIP: Hull = Hull {
@@ -701,6 +739,7 @@ pub mod list {
       (key!("uLHDwjLFekuYaY3h0JwZoQ"), key!("44SMwZSbRkOQyQmJ458Y1Q")),
       (key!("VkODw--0zk-K4FkajpPjwQ"), key!("F-nHNZm4Z0WZMJakJAwlPw")),
       (key!("y70HHuLWd0uphO2H-hvZGQ"), key!("NjfVPFfJqUmkw-AR_2KBjg"))
-    ]
+    ],
+    config_template: Some(HullConfigTemplate::ContainerLiner)
   };
 }

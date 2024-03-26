@@ -596,7 +596,7 @@ impl Countermeasure {
     match self {
       Self::RadarJamming | Self::CommsJamming | Self::LaserDazzler => CountermeasureCategory::Jamming,
       Self::ChaffDecoy | Self::FlareDecoy | Self::ActiveDecoy => CountermeasureCategory::Decoy,
-      Self::CutEngines | Self::CutRadar => todo!()
+      Self::CutEngines | Self::CutRadar => CountermeasureCategory::Concealment
     }
   }
 }
