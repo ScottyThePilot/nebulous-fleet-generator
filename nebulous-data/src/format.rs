@@ -419,8 +419,8 @@ impl SerializeElement for WeaponGroup {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct InitialFormation {
-  guide_key: Uuid,
-  relative_position: Vector3<f32>
+  pub guide_key: Uuid,
+  pub relative_position: Vector3<f32>
 }
 
 impl DeserializeElement for InitialFormation {
@@ -1284,6 +1284,12 @@ pub struct Color {
   pub a: f32
 }
 
+impl Color {
+  pub const fn splat(v: f32, a: f32) -> Self {
+    Color { r: v, g: v, b: v, a }
+  }
+}
+
 impl DeserializeNodes for Color {
   type Error = FormatError;
 
@@ -1320,6 +1326,12 @@ pub struct Vector3<T> {
   pub z: T
 }
 
+impl<T> Vector3<T> {
+  pub const fn splat(v: T) -> Self where T: Copy {
+    Vector3 { x: v, y: v, z: v }
+  }
+}
+
 impl<T> DeserializeNodes for Vector3<T> where T: DeserializeNodes {
   type Error = xml::DeserializeErrorWrapper<T::Error>;
 
@@ -1354,6 +1366,12 @@ impl<T> SerializeNodes for Vector3<T> where T: SerializeNodes {
 pub struct Vector2<T> {
   pub x: T,
   pub y: T
+}
+
+impl<T> Vector2<T> {
+  pub const fn splat(v: T) -> Self where T: Copy {
+    Vector2 { x: v, y: v }
+  }
 }
 
 impl<T> DeserializeNodes for Vector2<T> where T: DeserializeNodes {

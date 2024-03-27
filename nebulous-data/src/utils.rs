@@ -13,7 +13,8 @@ use std::ops::RangeInclusive;
 
 #[cfg(feature = "rand")]
 pub fn gen_uuid<R: Rng + ?Sized>(rng: &mut R) -> Uuid {
-  Uuid::from_bytes(rng.gen())
+  const MASK: Uuid = nebulous_xml::uuid::uuid!("ffffffff-ffff-4fff-bfff-ffffffffffff");
+  Uuid::from_u128(rng.gen::<u128>() & MASK.as_u128())
 }
 
 /// Produces an [`fmt::Display`]/[`fmt::Debug`] type given a closure to be executed as its body.
