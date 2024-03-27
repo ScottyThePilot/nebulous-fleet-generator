@@ -1,12 +1,13 @@
-mod bulk_freighter;
-mod container_liner;
+mod config;
 
 use crate::format::key::Key;
 use crate::utils::{ContiguousExt, Size};
 use super::{Buff, Direction, Faction};
 use super::components::ComponentKind;
-pub use self::bulk_freighter::HullConfigBulkFreighter;
-pub use self::container_liner::HullConfigContainerLiner;
+use self::config::bulk_freighter::HullConfigBulkFreighter;
+use self::config::container_liner::HullConfigContainerLiner;
+pub use self::config::bulk_freighter;
+pub use self::config::container_liner;
 
 use bytemuck::Contiguous;
 #[cfg(feature = "rand")]
