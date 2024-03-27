@@ -164,12 +164,31 @@ pub struct Ship {
 impl Ship {
   /// Creates a duplicate of this ship.
   /// Keys will be randomized so that placing this ship into a fleet with the original produces a valid fleet.
-  /// Hull configs (Bulk Freighter/Container Liner appearance) will also be randomized.
   #[cfg(feature = "rand")]
   pub fn dupe<R: Rng + ?Sized>(&self, rng: &mut R) -> Self {
+    use crate::data::hulls::config::{bulk_freighter, container_liner};
+
     let key = crate::utils::gen_uuid(rng);
-    let hull_config = self.hull_type.hull().config_template
-      .map(|template| Box::new(rng.sample(template)));
+
+    let hull_config = self.hull_config.as_deref().and_then(|hull_config| {
+      match self.hull_type {
+        HullKey::BulkFreighterLineShip => Some({
+          let variants = bulk_freighter::get_variants(hull_config)?;
+          Box::new(rng.sample(bulk_freighter::HullConfigBulkFreighter { variants }))
+        }),
+        HullKey::ContainerLinerLineShip => Some({
+          let variants = container_liner::get_variants(hull_config)?;
+          Box::new(rng.sample(container_liner::HullConfigContainerLiner { variants }))
+        }),
+        _ => None
+      }
+    });
+
+    let hull_config = hull_config.or_else(|| {
+      self.hull_type.hull().config_template
+        .map(|template| Box::new(rng.sample(template)))
+    });
+
     let mut socket_map = self.socket_map.clone();
     for hull_socket in socket_map.iter_mut() {
       if let Some(load) = hull_socket.component_data.as_mut().and_then(ComponentData::get_load_mut) {

@@ -13,22 +13,23 @@ use std::array::from_fn as array_from_fn;
 use std::iter::repeat_with;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct HullConfigContainerLiner;
+pub struct HullConfigContainerLiner {
+  pub variants: [Variant; 3]
+}
 
 #[cfg(feature = "rand")]
 impl Distribution<HullConfig> for HullConfigContainerLiner {
   fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> HullConfig {
-    let variants = rng.gen::<[Variant; 3]>();
-    let dressing_counts = get_dressing_counts(variants);
+    let dressing_counts = get_dressing_counts(self.variants);
 
     let primary_structure = array_from_fn(|i| {
-      let key = *variants[i].select_array(&PRIMARY_STRUCTURES[i]);
+      let key = *self.variants[i].select_array(&PRIMARY_STRUCTURES[i]);
       let dressing = repeat_with(|| rng.gen_range(0..=1))
         .take(dressing_counts[i]).collect();
       SegmentConfiguration { key, dressing }
     });
 
-    let bridge_locations = can_mount_bridges(variants);
+    let bridge_locations = can_mount_bridges(self.variants);
     let mut bridge_location = rng.gen_range(0..3);
     while !bridge_locations[bridge_location] {
       bridge_location = rng.gen_range(0..3);
@@ -50,6 +51,17 @@ impl Distribution<HullConfig> for HullConfigContainerLiner {
         z: rng.gen_range(MIN_VARIATION..MAX_VARIATION)
       }
     }
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct HullConfigContainerLinerFull;
+
+#[cfg(feature = "rand")]
+impl Distribution<HullConfig> for HullConfigContainerLinerFull {
+  fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> HullConfig {
+    let variants = rng.gen::<[Variant; 3]>();
+    rng.sample(HullConfigContainerLiner { variants })
   }
 }
 
@@ -78,6 +90,21 @@ pub(super) const PRIMARY_STRUCTURES: [[Uuid; 3]; 3] = [
 ];
 
 pub(super) const SECONDARY_STRUCTURES: [Uuid; 4] = super::bulk_freighter::SECONDARY_STRUCTURES;
+
+pub fn get_variants(hull_config: &HullConfig) -> Option<[Variant; 3]> {
+  let HullConfig::RandomHullConfiguration { primary_structure, .. } = hull_config;
+  let variants: [_; 3] = array_from_fn(|i| {
+    let key = primary_structure[i].key;
+    PRIMARY_STRUCTURES[i].iter().position(|&uuid| uuid == key)
+      .and_then(|pos| Variant::from_num(pos as u32))
+  });
+
+  let v0 = variants[0]?;
+  let v1 = variants[1]?;
+  let v2 = variants[2]?;
+
+  Some([v0, v1, v2])
+}
 
 const fn get_dressing_counts(variants: [Variant; 3]) -> [usize; 3] {
   // front dressing is always 1

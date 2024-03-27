@@ -1,13 +1,11 @@
-mod config;
+pub mod config;
 
 use crate::format::key::Key;
 use crate::utils::{ContiguousExt, Size};
 use super::{Buff, Direction, Faction};
 use super::components::ComponentKind;
-use self::config::bulk_freighter::HullConfigBulkFreighter;
-use self::config::container_liner::HullConfigContainerLiner;
-pub use self::config::bulk_freighter;
-pub use self::config::container_liner;
+use self::config::bulk_freighter::HullConfigBulkFreighterFull;
+use self::config::container_liner::HullConfigContainerLinerFull;
 
 use bytemuck::Contiguous;
 #[cfg(feature = "rand")]
@@ -144,8 +142,8 @@ pub enum HullConfigTemplate {
 impl Distribution<crate::format::HullConfig> for HullConfigTemplate {
   fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> crate::format::HullConfig {
     match self {
-      Self::BulkFreighter => HullConfigBulkFreighter.sample(rng),
-      Self::ContainerLiner => HullConfigContainerLiner.sample(rng)
+      Self::BulkFreighter => HullConfigBulkFreighterFull.sample(rng),
+      Self::ContainerLiner => HullConfigContainerLinerFull.sample(rng)
     }
   }
 }
