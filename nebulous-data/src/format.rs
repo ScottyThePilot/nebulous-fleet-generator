@@ -10,6 +10,8 @@ use crate::data::components::ComponentKey;
 use self::key::Key;
 
 use bytemuck::Contiguous;
+#[cfg(feature = "rand")]
+use rand::Rng;
 use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes, Attributes};
 
 #[doc(no_inline)]
@@ -95,6 +97,17 @@ pub struct Fleet {
   pub missile_types: Vec<MissileTemplate>
 }
 
+impl Fleet {
+  #[cfg(feature = "rand")]
+  pub fn double<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+    self.name.push_str(" (2x)");
+    self.total_points *= 2;
+    for i in 0..self.ships.len() {
+      self.ships.push(self.ships[i].dupe(rng));
+    };
+  }
+}
+
 impl DeserializeElement for Fleet {
   type Error = FormatError;
 
@@ -146,6 +159,40 @@ pub struct Ship {
   pub weapon_groups: Vec<WeaponGroup>,
   pub initial_formation: Option<InitialFormation>,
   pub missile_types: Vec<MissileTemplate>
+}
+
+impl Ship {
+  /// Creates a duplicate of this ship.
+  /// Keys will be randomized so that placing this ship into a fleet with the original produces a valid fleet.
+  /// Hull configs (Bulk Freighter/Container Liner appearance) will also be randomized.
+  #[cfg(feature = "rand")]
+  pub fn dupe<R: Rng + ?Sized>(&self, rng: &mut R) -> Self {
+    let key = crate::utils::gen_uuid(rng);
+    let hull_config = self.hull_type.hull().config_template
+      .map(|template| Box::new(rng.sample(template)));
+    let mut socket_map = self.socket_map.clone();
+    for hull_socket in socket_map.iter_mut() {
+      if let Some(load) = hull_socket.component_data.as_mut().and_then(ComponentData::get_load_mut) {
+        for magazine_save_data in load.iter_mut() {
+          magazine_save_data.magazine_key = rng.gen::<Key>();
+        };
+      };
+    };
+
+    Self {
+      key,
+      name: self.name.clone(),
+      cost: self.cost,
+      callsign: self.callsign.clone(),
+      number: self.number,
+      hull_type: self.hull_type,
+      hull_config,
+      socket_map,
+      weapon_groups: self.weapon_groups.clone(),
+      initial_formation: self.initial_formation,
+      missile_types: self.missile_types.clone()
+    }
+  }
 }
 
 impl DeserializeElement for Ship {
