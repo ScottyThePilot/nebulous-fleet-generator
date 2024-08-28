@@ -6,3 +6,6 @@ members = [
   "nebulous-fleet-generator",
   "nebulous-xml"
 ]
+
+[profile.release]
+lto = "thin"

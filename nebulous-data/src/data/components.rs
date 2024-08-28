@@ -335,6 +335,7 @@ pub enum ComponentKey {
   CitadelMagazine,
   CivilianReactor,
   ContainerBankLauncher,
+  ContainerDatalinkArray,
   ContainerStackLauncher,
   DamageControlCentral,
   DamageControlComplex,
@@ -478,6 +479,7 @@ impl ComponentKey {
       Self::CitadelMagazine => &CITADEL_MAGAZINE,
       Self::CivilianReactor => &CIVILIAN_REACTOR,
       Self::ContainerBankLauncher => &CONTAINER_BANK_LAUNCHER,
+      Self::ContainerDatalinkArray => &CONTAINER_DATALINK_ARRAY,
       Self::ContainerStackLauncher => &CONTAINER_STACK_LAUNCHER,
       Self::DamageControlCentral => &DAMAGE_CONTROL_CENTRAL,
       Self::DamageControlComplex => &DAMAGE_CONTROL_COMPLEX,
@@ -552,7 +554,7 @@ impl ComponentKey {
       Self::RM50ParallaxRadar => &RM50_PARALLAX_RADAR,
       Self::RS35FrontlineRadar => &RS35_FRONTLINE_RADAR,
       Self::RS41SpyglassRadar => &RS41_SPYGLASS_RADAR,
-      Self::RapidCycleCradle => &RAPIDCYCLE_CRADLE,
+      Self::RapidCycleCradle => &RAPID_CYCLE_CRADLE,
       Self::RapidDCLocker => &RAPID_DC_LOCKER,
       Self::RedundantReactorFailsafes => &REDUNDANT_REACTOR_FAILSAFES,
       Self::ReinforcedCIC => &REINFORCED_CIC,
@@ -707,7 +709,7 @@ pub mod list {
       intel_accuracy: 0.25
     }),
     faction: None,
-    compounding_multiplier: None,
+    compounding_multiplier: Some(1.0),
     first_instance_free: false,
     point_cost: 10,
     mass: 10.0,
@@ -925,7 +927,7 @@ pub mod list {
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
     first_instance_free: false,
-    point_cost: 20,
+    point_cost: 30,
     mass: 5.0,
     size: Size::new(2, 2, 2),
     power: -2000,
@@ -955,7 +957,7 @@ pub mod list {
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
     first_instance_free: false,
-    point_cost: 15,
+    point_cost: 20,
     mass: 15.0,
     size: Size::new(2, 5, 2),
     power: -100,
@@ -1045,7 +1047,7 @@ pub mod list {
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
     first_instance_free: false,
-    point_cost: 40,
+    point_cost: 30,
     mass: 35.0,
     size: Size::new(6, 10, 6),
     power: -300,
@@ -1126,6 +1128,7 @@ pub mod list {
     reinforced: false,
     buffs: &[
       Buff::AngularThrust(0.35),
+      Buff::LinearThrust(0.3),
       Buff::TopSpeed(-0.15),
       Buff::TurnRate(0.4)
     ]
@@ -1148,8 +1151,8 @@ pub mod list {
     reinforced: false,
     buffs: &[
       Buff::AngularThrust(0.4),
-      Buff::LinearThrust(0.1),
-      Buff::TopSpeed(-0.1),
+      Buff::LinearThrust(0.15),
+      Buff::TopSpeed(-0.075),
       Buff::TurnRate(0.45)
     ]
   };
@@ -1170,8 +1173,8 @@ pub mod list {
     max_health: 700.0,
     reinforced: false,
     buffs: &[
-      Buff::FlankDamageProbability(0.5),
-      Buff::LinearThrust(0.2),
+      Buff::AngularThrust(-0.1),
+      Buff::FlankDamageProbability(0.25),
       Buff::TopSpeed(0.2)
     ]
   };
@@ -1207,7 +1210,7 @@ pub mod list {
     size: Size::new(3, 4, 3),
     power: -200,
     crew: 0,
-    max_health: 175.0,
+    max_health: 250.0,
     reinforced: false,
     buffs: &[]
   };
@@ -1287,7 +1290,7 @@ pub mod list {
     point_cost: 8,
     mass: 6.0,
     size: Size::new(1, 3, 1),
-    power: -10,
+    power: 0,
     crew: 0,
     max_health: 300.0,
     reinforced: true,
@@ -1339,6 +1342,27 @@ pub mod list {
     max_health: 500.0,
     reinforced: false,
     buffs: &[]
+  };
+
+  pub const CONTAINER_DATALINK_ARRAY: Component = Component {
+    name: "Container Datalink Array",
+    save_key: "Stock/Container Datalink Array",
+    kind: ComponentKind::Compartment,
+    variant: None,
+    faction: Some(Faction::Protectorate),
+    compounding_multiplier: None,
+    first_instance_free: false,
+    point_cost: 200,
+    mass: 40.0,
+    size: Size::new(6, 3, 6),
+    power: -1000,
+    crew: -30,
+    max_health: 300.0,
+    reinforced: false,
+    buffs: &[
+      Buff::MissileProgrammingChannels(2),
+      Buff::MissileProgrammingSpeed(0.3)
+    ]
   };
 
   pub const CONTAINER_STACK_LAUNCHER: Component = Component {
@@ -1769,7 +1793,6 @@ pub mod list {
     reinforced: false,
     buffs: &[
       Buff::AngularThrust(-0.1),
-      Buff::LinearThrust(-0.25),
       Buff::RadarSignature(-0.25),
       Buff::TopSpeed(-0.15)
     ]
@@ -2062,13 +2085,15 @@ pub mod list {
     compounding_multiplier: None,
     first_instance_free: false,
     point_cost: 20,
-    mass: 40.0,
+    mass: 100.0,
     size: Size::new(6, 3, 6),
-    power: 500,
+    power: 2500,
     crew: -30,
     max_health: 300.0,
     reinforced: false,
-    buffs: &[]
+    buffs: &[
+      Buff::ReloadTimeEnergy(0.25)
+    ]
   };
 
   pub const L50_BLACKJACK_LASER_DAZZLER: Component = Component {
@@ -2114,7 +2139,7 @@ pub mod list {
     size: Size::new(3, 1, 6),
     power: 0,
     crew: -15,
-    max_health: 150.0,
+    max_health: 200.0,
     reinforced: false,
     buffs: &[]
   };
@@ -2193,7 +2218,7 @@ pub mod list {
     size: Size::new(3, 2, 3),
     power: -100,
     crew: -10,
-    max_health: 100.0,
+    max_health: 200.0,
     reinforced: false,
     buffs: &[]
   };
@@ -2218,7 +2243,7 @@ pub mod list {
     size: Size::new(2, 2, 5),
     power: -50,
     crew: -10,
-    max_health: 100.0,
+    max_health: 200.0,
     reinforced: false,
     buffs: &[]
   };
@@ -2243,7 +2268,7 @@ pub mod list {
     size: Size::new(2, 2, 5),
     power: -50,
     crew: -12,
-    max_health: 100.0,
+    max_health: 200.0,
     reinforced: false,
     buffs: &[]
   };
@@ -2293,7 +2318,7 @@ pub mod list {
     save_key: "Stock/Missile Programming Bus",
     kind: ComponentKind::Module,
     variant: None,
-    faction: None,
+    faction: Some(Faction::Alliance),
     compounding_multiplier: None,
     first_instance_free: false,
     point_cost: 30,
@@ -2313,7 +2338,7 @@ pub mod list {
     save_key: "Stock/Missile Programming Bus Array",
     kind: ComponentKind::Module,
     variant: None,
-    faction: None,
+    faction: Some(Faction::Alliance),
     compounding_multiplier: None,
     first_instance_free: false,
     point_cost: 50,
@@ -2348,7 +2373,7 @@ pub mod list {
     faction: Some(Faction::Alliance),
     compounding_multiplier: None,
     first_instance_free: false,
-    point_cost: 20,
+    point_cost: 25,
     mass: 3.0,
     size: Size::new(2, 1, 2),
     power: -175,
@@ -2804,7 +2829,7 @@ pub mod list {
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
     first_instance_free: false,
-    point_cost: 15,
+    point_cost: 20,
     mass: 4.0,
     size: Size::new(2, 1, 2),
     power: -150,
@@ -2994,7 +3019,7 @@ pub mod list {
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
     first_instance_free: false,
-    point_cost: 15,
+    point_cost: 30,
     mass: 8.0,
     size: Size::new(3, 1, 3),
     power: -50,
@@ -3020,7 +3045,7 @@ pub mod list {
     faction: Some(Faction::Protectorate),
     compounding_multiplier: None,
     first_instance_free: false,
-    point_cost: 15,
+    point_cost: 30,
     mass: 13.0,
     size: Size::new(6, 3, 6),
     power: -75,
@@ -3102,7 +3127,7 @@ pub mod list {
     buffs: &[]
   };
 
-  pub const RAPIDCYCLE_CRADLE: Component = Component {
+  pub const RAPID_CYCLE_CRADLE: Component = Component {
     name: "Rapid-Cycle Cradle",
     save_key: "Stock/Rapid-Cycle Cradle",
     kind: ComponentKind::Module,
@@ -3118,7 +3143,7 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      Buff::RecycleTime(-0.25), Buff::RecycleTimeEnergy(-0.25)
+      Buff::RecycleTime(-0.25)
     ]
   };
 
@@ -3140,7 +3165,7 @@ pub mod list {
     size: Size::new(3, 1, 3),
     power: 0,
     crew: -5,
-    max_health: 70.0,
+    max_health: 100.0,
     reinforced: false,
     buffs: &[]
   };
@@ -3205,7 +3230,7 @@ pub mod list {
     size: Size::new(3, 1, 6),
     power: 0,
     crew: -10,
-    max_health: 200.0,
+    max_health: 250.0,
     reinforced: true,
     buffs: &[]
   };
@@ -3223,7 +3248,7 @@ pub mod list {
     point_cost: 2,
     mass: 2.0,
     size: Size::new(1, 1, 1),
-    power: -10,
+    power: 0,
     crew: 0,
     max_health: 150.0,
     reinforced: true,
@@ -3284,12 +3309,12 @@ pub mod list {
     faction: None,
     compounding_multiplier: None,
     first_instance_free: false,
-    point_cost: 30,
+    point_cost: 20,
     mass: 1.5,
     size: Size::new(3, 1, 3),
     power: 0,
     crew: -10,
-    max_health: 100.0,
+    max_health: 150.0,
     reinforced: false,
     buffs: &[]
   };
@@ -3413,7 +3438,9 @@ pub mod list {
     max_health: 100.0,
     reinforced: false,
     buffs: &[
-      Buff::FlankDamageProbability(-0.2), Buff::TopSpeed(0.25)
+      Buff::AngularThrust(-0.25),
+      Buff::FlankDamageProbability(-0.2),
+      Buff::TopSpeed(0.25)
     ]
   };
 
@@ -3549,7 +3576,7 @@ pub mod list {
     size: Size::new(4, 10, 4),
     power: -4250,
     crew: -15,
-    max_health: 450.0,
+    max_health: 150.0,
     reinforced: false,
     buffs: &[]
   };
@@ -3682,7 +3709,7 @@ pub mod list {
     size: Size::new(3, 4, 3),
     power: -200,
     crew: 0,
-    max_health: 100.0,
+    max_health: 200.0,
     reinforced: false,
     buffs: &[]
   };
@@ -3717,7 +3744,7 @@ pub mod list {
     size: Size::new(3, 4, 3),
     power: -200,
     crew: 0,
-    max_health: 175.0,
+    max_health: 250.0,
     reinforced: false,
     buffs: &[]
   };

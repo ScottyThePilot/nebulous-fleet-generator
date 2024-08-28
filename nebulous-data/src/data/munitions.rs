@@ -275,7 +275,7 @@ pub mod list {
         armor_penetration: 3.0,
         component_damage: 15.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(0.5),
+        max_penetration_depth: Some(5.0),
         can_ricochet: true
       }
     }
@@ -338,7 +338,7 @@ pub mod list {
         armor_penetration: 30.0,
         component_damage: 45.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(1.5),
+        max_penetration_depth: Some(15.0),
         can_ricochet: true
       }
     }
@@ -359,7 +359,7 @@ pub mod list {
         armor_penetration: 8.0,
         component_damage: 70.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(3.0),
+        max_penetration_depth: Some(30.0),
         can_ricochet: true
       }
     }
@@ -401,7 +401,7 @@ pub mod list {
         armor_penetration: 30.0,
         component_damage: 50.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(1.5),
+        max_penetration_depth: Some(15.0),
         can_ricochet: true
       }
     }
@@ -422,7 +422,7 @@ pub mod list {
         armor_penetration: 10.0,
         component_damage: 8.0,
         overpenetration_damage_multiplier: 1.0,
-        max_penetration_depth: Some(1.0),
+        max_penetration_depth: Some(10.0),
         can_ricochet: true
       }
     }
@@ -464,7 +464,7 @@ pub mod list {
         armor_penetration: 40.0,
         component_damage: 80.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(2.5),
+        max_penetration_depth: Some(25.0),
         can_ricochet: true
       }
     }
@@ -485,7 +485,7 @@ pub mod list {
         armor_penetration: 20.0,
         component_damage: 16.0,
         overpenetration_damage_multiplier: 1.0,
-        max_penetration_depth: Some(1.0),
+        max_penetration_depth: Some(10.0),
         can_ricochet: true
       }
     }
@@ -521,7 +521,7 @@ pub mod list {
     point_division: 25,
     storage_volume: 0.8,
     flight_speed: 600.0,
-    max_range: 8400.0,
+    max_range: 7200.0,
     variant: MunitionVariant::Shell {
       damage: MunitionDamage {
         armor_penetration: 60.0,
@@ -541,8 +541,8 @@ pub mod list {
     point_cost: 1,
     point_division: 25,
     storage_volume: 0.8,
-    flight_speed: 750.0,
-    max_range: 11250.0,
+    flight_speed: 800.0,
+    max_range: 11240.0,
     variant: MunitionVariant::Shell {
       damage: MunitionDamage {
         armor_penetration: 110.0,
@@ -562,14 +562,14 @@ pub mod list {
     point_cost: 1,
     point_division: 25,
     storage_volume: 0.8,
-    flight_speed: 750.0,
-    max_range: 11250.0,
+    flight_speed: 800.0,
+    max_range: 11240.0,
     variant: MunitionVariant::Shell {
       damage: MunitionDamage {
         armor_penetration: 65.0,
         component_damage: 150.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(3.0),
+        max_penetration_depth: Some(30.0),
         can_ricochet: true
       }
     }
@@ -588,9 +588,9 @@ pub mod list {
     variant: MunitionVariant::Shell {
       damage: MunitionDamage {
         armor_penetration: 120.0,
-        component_damage: 400.0,
+        component_damage: 300.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(3.0),
+        max_penetration_depth: Some(30.0),
         can_ricochet: true
       }
     }
@@ -611,7 +611,7 @@ pub mod list {
         armor_penetration: 30.0,
         component_damage: 40.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(5.0),
+        max_penetration_depth: Some(50.0),
         can_ricochet: true
       }
     }
@@ -629,10 +629,10 @@ pub mod list {
     max_range: 9800.0,
     variant: MunitionVariant::Shell {
       damage: MunitionDamage {
-        armor_penetration: 75.0,
-        component_damage: 300.0,
+        armor_penetration: 85.0,
+        component_damage: 420.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(5.0),
+        max_penetration_depth: Some(50.0),
         can_ricochet: true
       }
     }
@@ -673,7 +673,7 @@ pub mod list {
     save_key: "Stock/Mine Container",
     role: WeaponRole::Utility,
     family: MunitionFamily::ContainerMissile,
-    point_cost: 15,
+    point_cost: 12,
     point_division: 1,
     storage_volume: 30.0,
     flight_speed: 175.0,
@@ -728,6 +728,21 @@ pub mod list {
     }
   };
 
+  pub const EA14_CHAFF_DECOY: Munition = Munition {
+    name: "EA14 Chaff Decoy",
+    save_key: "Stock/EA14 Chaff Decoy",
+    role: WeaponRole::Decoy,
+    family: MunitionFamily::StandardMissileSize1,
+    point_cost: 2,
+    point_division: 1,
+    storage_volume: 4.0,
+    flight_speed: 70.0,
+    max_range: 70.0,
+    variant: MunitionVariant::MissileOther {
+      size: MissileSize::Size1
+    }
+  };
+
   pub const EA20_FLARE_DECOY: Munition = Munition {
     name: "EA20 Flare Decoy",
     save_key: "Stock/EA20 Flare Decoy",
@@ -773,7 +788,7 @@ pub mod list {
         armor_penetration: 1.0,
         component_damage: 15.0,
         overpenetration_damage_multiplier: 0.2,
-        max_penetration_depth: Some(0.2),
+        max_penetration_depth: Some(2.0),
         can_ricochet: true
       }
     }
@@ -784,9 +799,9 @@ pub mod list {
     save_key: "Stock/S3 Mine",
     role: WeaponRole::Offensive,
     family: MunitionFamily::LoiteringMine,
-    point_cost: 6,
+    point_cost: 5,
     point_division: 1,
-    storage_volume: 30.0,
+    storage_volume: 25.0,
     flight_speed: 250.0,
     max_range: 3750.0,
     variant: MunitionVariant::Missile {
@@ -808,7 +823,7 @@ pub mod list {
     family: MunitionFamily::LoiteringMine,
     point_cost: 6,
     point_division: 1,
-    storage_volume: 30.0,
+    storage_volume: 25.0,
     flight_speed: 250.0,
     max_range: 3750.0,
     variant: MunitionVariant::Missile {
@@ -830,7 +845,7 @@ pub mod list {
     family: MunitionFamily::LoiteringMine,
     point_cost: 10,
     point_division: 1,
-    storage_volume: 30.0,
+    storage_volume: 25.0,
     flight_speed: 700.0,
     max_range: 3850.0,
     variant: MunitionVariant::Missile {
@@ -850,7 +865,7 @@ pub mod list {
     save_key: "Stock/S1 Rocket",
     role: WeaponRole::Offensive,
     family: MunitionFamily::UnguidedRocket,
-    point_cost: 3,
+    point_cost: 2,
     point_division: 1,
     storage_volume: 6.0,
     flight_speed: 350.0,

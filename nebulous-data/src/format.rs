@@ -172,11 +172,11 @@ impl Ship {
 
     let hull_config = self.hull_config.as_deref().and_then(|hull_config| {
       match self.hull_type {
-        HullKey::BulkFreighterLineShip => Some({
+        HullKey::MarauderLineShip => Some({
           let variants = bulk_freighter::get_variants(hull_config)?;
           Box::new(rng.sample(bulk_freighter::HullConfigBulkFreighter { variants }))
         }),
-        HullKey::ContainerLinerLineShip => Some({
+        HullKey::MoorlineLineShip => Some({
           let variants = container_liner::get_variants(hull_config)?;
           Box::new(rng.sample(container_liner::HullConfigContainerLiner { variants }))
         }),

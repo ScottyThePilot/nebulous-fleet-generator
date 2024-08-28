@@ -32,6 +32,7 @@ pub struct Hull {
   pub base_integrity: f32,
   pub armor_thickness: f32,
   pub base_crew_complement: usize,
+  pub base_sig_radius: f32,
   pub buffs: &'static [Buff],
   pub sockets: &'static [HullSocket],
   pub socket_symmetries: &'static [(Key, Key)],
@@ -78,12 +79,12 @@ pub enum HullKey {
   VauxhallLightCruiser,
   AxfordHeavyCruiser,
   SolomonBattleship,
-  ShuttleClipper,
-  TugboatClipper,
-  CargoFeederMonitor,
+  FerrymanClipper,
+  DraugrClipper,
+  FlatheadMonitor,
   OcelloCommandCruiser,
-  BulkFreighterLineShip,
-  ContainerLinerLineShip
+  MarauderLineShip,
+  MoorlineLineShip
 }
 
 impl HullKey {
@@ -105,12 +106,12 @@ impl HullKey {
       Self::VauxhallLightCruiser => &VAUXHALL_LIGHT_CRUISER,
       Self::AxfordHeavyCruiser => &AXFORD_HEAVY_CRUISER,
       Self::SolomonBattleship => &SOLOMON_BATTLESHIP,
-      Self::ShuttleClipper => &SHUTTLE_CLIPPER,
-      Self::TugboatClipper => &TUGBOAT_CLIPPER,
-      Self::CargoFeederMonitor => &CARGO_FEEDER_MONITOR,
+      Self::FerrymanClipper => &FERRYMAN_CLIPPER,
+      Self::DraugrClipper => &DRAUGR_CLIPPER,
+      Self::FlatheadMonitor => &FLATHEAD_MONITOR,
       Self::OcelloCommandCruiser => &OCELLO_COMMAND_CRUISER,
-      Self::BulkFreighterLineShip => &BULK_FREIGHTER_LINE_SHIP,
-      Self::ContainerLinerLineShip => &CONTAINER_LINER_LINE_SHIP
+      Self::MarauderLineShip => &MARAUDER_LINE_SHIP,
+      Self::MoorlineLineShip => &MOORLINE_LINE_SHIP
     }
   }
 }
@@ -158,7 +159,7 @@ pub mod list {
     name: "Sprinter Corvette",
     save_key: "Stock/Sprinter Corvette",
     faction: Faction::Alliance,
-    point_cost: 100,
+    point_cost: 75,
     mass: 3080.0,
     max_speed: 35.0,
     max_turn_speed: 5.729578,
@@ -166,7 +167,8 @@ pub mod list {
     angular_motor: 0.9,
     base_integrity: 1000.0,
     armor_thickness: 8.0,
-    base_crew_complement: 40,
+    base_crew_complement: 55,
+    base_sig_radius: 39.7,
     buffs: &[
       Buff::FlankDamageProbability(-0.2),
       Buff::PositionalError(-0.15),
@@ -206,6 +208,7 @@ pub mod list {
     base_integrity: 3000.0,
     armor_thickness: 15.0,
     base_crew_complement: 50,
+    base_sig_radius: 48.5,
     buffs: &[
       Buff::FlankDamageProbability(-0.15),
       Buff::MissileProgrammingChannels(1)
@@ -245,9 +248,10 @@ pub mod list {
     base_integrity: 4000.0,
     armor_thickness: 22.0,
     base_crew_complement: 50,
+    base_sig_radius: 65.84752,
     buffs: &[
       Buff::MissileProgrammingChannels(1),
-      Buff::OverheatDamageChanceBeam(-0.75),
+      Buff::OverheatDamageChanceBeam(-0.5),
       Buff::PowerplantEfficiency(0.25)
     ],
     sockets: &[
@@ -292,6 +296,7 @@ pub mod list {
     base_integrity: 5500.0,
     armor_thickness: 30.0,
     base_crew_complement: 75,
+    base_sig_radius: 95.03681,
     buffs: &[
       Buff::MissileProgrammingChannels(2)
     ],
@@ -345,6 +350,7 @@ pub mod list {
     base_integrity: 6500.0,
     armor_thickness: 40.0,
     base_crew_complement: 90,
+    base_sig_radius: 97.5,
     buffs: &[
       Buff::MaxRepair(0.15),
       Buff::MissileProgrammingChannels(2)
@@ -406,6 +412,7 @@ pub mod list {
     base_integrity: 8000.0,
     armor_thickness: 58.0,
     base_crew_complement: 150,
+    base_sig_radius: 138.0,
     buffs: &[
       Buff::MaxRepair(0.05)
     ],
@@ -465,8 +472,8 @@ pub mod list {
     config_template: None
   };
 
-  pub const SHUTTLE_CLIPPER: Hull = Hull {
-    name: "Shuttle Clipper",
+  pub const FERRYMAN_CLIPPER: Hull = Hull {
+    name: "Ferryman Clipper",
     save_key: "Stock/Shuttle",
     faction: Faction::Protectorate,
     point_cost: 50,
@@ -478,6 +485,7 @@ pub mod list {
     base_integrity: 1000.0,
     armor_thickness: 5.0,
     base_crew_complement: 55,
+    base_sig_radius: 39.7,
     buffs: &[
       Buff::FlankDamageProbability(-0.2)
     ],
@@ -497,8 +505,8 @@ pub mod list {
     config_template: None
   };
 
-  pub const TUGBOAT_CLIPPER: Hull = Hull {
-    name: "Tugboat Clipper",
+  pub const DRAUGR_CLIPPER: Hull = Hull {
+    name: "Draugr Clipper",
     save_key: "Stock/Tugboat",
     faction: Faction::Protectorate,
     point_cost: 75,
@@ -510,6 +518,7 @@ pub mod list {
     base_integrity: 1000.0,
     armor_thickness: 5.0,
     base_crew_complement: 40,
+    base_sig_radius: 43.14064,
     buffs: &[],
     sockets: &[
       HullSocket::mount(key!("03vxralGq0CFx1XKxjOcBA"), Size::new(2, 5, 2), Fore, 1.0),
@@ -533,19 +542,20 @@ pub mod list {
     config_template: None
   };
 
-  pub const CARGO_FEEDER_MONITOR: Hull = Hull {
-    name: "Cargo Feeder Monitor",
+  pub const FLATHEAD_MONITOR: Hull = Hull {
+    name: "Flathead Monitor",
     save_key: "Stock/Bulk Feeder",
     faction: Faction::Protectorate,
     point_cost: 175,
     mass: 5095.0,
-    max_speed: 20.0,
+    max_speed: 18.0,
     max_turn_speed: 5.729578,
-    linear_motor: 5.0,
+    linear_motor: 7.0,
     angular_motor: 1.0,
     base_integrity: 1000.0,
     armor_thickness: 48.0,
     base_crew_complement: 40,
+    base_sig_radius: 68.53516,
     buffs: &[],
     sockets: &[
       HullSocket::mount(key!("4V6twrIUcEKE11tom-tDXQ"), Size::new(6, 12, 6), Fore, 1.0),
@@ -586,8 +596,11 @@ pub mod list {
     base_integrity: 6500.0,
     armor_thickness: 30.0,
     base_crew_complement: 80,
+    base_sig_radius: 105.25,
     buffs: &[
-      Buff::MissileProgrammingChannels(2)
+      Buff::MaxRepair(0.05),
+      Buff::MissileProgrammingChannels(2),
+      Buff::PowerplantEfficiency(0.1)
     ],
     sockets: &[
       HullSocket::mount(key!("iJzzxinSN0uJIjrt9M3aGA"), Size::new(6, 4, 6), Up, 1.0),
@@ -628,19 +641,20 @@ pub mod list {
     config_template: None
   };
 
-  pub const BULK_FREIGHTER_LINE_SHIP: Hull = Hull {
-    name: "Bulk Freighter Line Ship",
+  pub const MARAUDER_LINE_SHIP: Hull = Hull {
+    name: "Marauder Line Ship",
     save_key: "Stock/Bulk Hauler",
     faction: Faction::Protectorate,
     point_cost: 350,
     mass: 15095.0,
     max_speed: 23.0,
     max_turn_speed: 7.448451,
-    linear_motor: 40.0,
+    linear_motor: 32.0,
     angular_motor: 7.5,
     base_integrity: 3000.0,
     armor_thickness: 20.0,
     base_crew_complement: 100,
+    base_sig_radius: 168.945282,
     buffs: &[
       Buff::MissileProgrammingChannels(1),
       Buff::RepairTeamMoveSpeed(0.2)
@@ -690,21 +704,22 @@ pub mod list {
     config_template: Some(HullConfigTemplate::BulkFreighter)
   };
 
-  pub const CONTAINER_LINER_LINE_SHIP: Hull = Hull {
-    name: "Container Liner Line Ship",
+  pub const MOORLINE_LINE_SHIP: Hull = Hull {
+    name: "Moorline Line Ship",
     save_key: "Stock/Container Hauler",
     faction: Faction::Protectorate,
-    point_cost: 1000,
+    point_cost: 600,
     mass: 15095.0,
     max_speed: 20.0,
     max_turn_speed: 4.0107045,
-    linear_motor: 40.0,
+    linear_motor: 32.0,
     angular_motor: 6.0,
     base_integrity: 3000.0,
     armor_thickness: 20.0,
     base_crew_complement: 100,
+    base_sig_radius: 200.5,
     buffs: &[
-      Buff::MissileProgrammingChannels(3)
+      Buff::MissileProgrammingChannels(5)
     ],
     sockets: &[
       HullSocket::mount_unknown(key!("uLHDwjLFekuYaY3h0JwZoQ"), Size::new(20, 5, 30), 1.0),

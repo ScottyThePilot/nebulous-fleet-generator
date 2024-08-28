@@ -73,12 +73,12 @@ impl Index<HullKey> for ParametersHullsList {
       HullKey::VauxhallLightCruiser => &self.vauxhall_light_cruiser,
       HullKey::AxfordHeavyCruiser => &self.axford_heavy_cruiser,
       HullKey::SolomonBattleship => &self.solomon_battleship,
-      HullKey::ShuttleClipper => &self.shuttle_clipper,
-      HullKey::TugboatClipper => &self.tugboat_clipper,
-      HullKey::CargoFeederMonitor => &self.cargo_feeder_monitor,
+      HullKey::FerrymanClipper => &self.shuttle_clipper,
+      HullKey::DraugrClipper => &self.tugboat_clipper,
+      HullKey::FlatheadMonitor => &self.cargo_feeder_monitor,
       HullKey::OcelloCommandCruiser => &self.ocello_command_cruiser,
-      HullKey::BulkFreighterLineShip => &self.bulk_freighter_line_ship,
-      HullKey::ContainerLinerLineShip => &self.container_liner_line_ship
+      HullKey::MarauderLineShip => &self.bulk_freighter_line_ship,
+      HullKey::MoorlineLineShip => &self.container_liner_line_ship
     }
   }
 }
