@@ -3,6 +3,8 @@ pub mod engines;
 pub mod seekers;
 
 use bytemuck::Contiguous;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use std::fmt;
 use std::str::FromStr;
@@ -11,6 +13,7 @@ use std::str::FromStr;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum AuxiliaryKey {
   ColdGasBottle,
   DecoyLauncher,
@@ -24,6 +27,7 @@ pub enum AuxiliaryKey {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum AvionicsKey {
   DirectGuidance,
   CruiseGuidance
@@ -40,6 +44,7 @@ impl AvionicsKey {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum WarheadKey {
   HEImpact,
   HEKineticPenetrator,
@@ -55,6 +60,7 @@ impl fmt::Display for Maneuvers {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum Maneuvers {
   #[default] None, Weave, Corkscrew
 }

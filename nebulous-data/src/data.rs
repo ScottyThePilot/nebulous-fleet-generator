@@ -4,6 +4,8 @@ pub mod missiles;
 pub mod munitions;
 
 use float_ord::FloatOrd;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Reverse;
@@ -66,6 +68,7 @@ pub enum InvalidKey {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum Faction {
   Alliance,
   Protectorate
@@ -107,6 +110,7 @@ impl fmt::Display for Faction {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum MissileSize {
   Size1 = 1,
   Size2 = 2,
@@ -126,12 +130,14 @@ impl MissileSize {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum Direction {
   Up, Down, Left, Right, Fore, Aft
 }
 
 #[allow(missing_copy_implementations)]
 #[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Buffs {
   pub angular_thrust: f32,
   pub burst_duration_beam: f32,
@@ -261,6 +267,7 @@ impl FromIterator<Buff> for Buffs {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum Buff {
   AngularThrust(f32),
   BurstDurationBeam(f32),
@@ -359,6 +366,7 @@ impl Buff {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum BuffKey {
   AngularThrust,
   BurstDurationBeam,
@@ -407,6 +415,7 @@ pub enum BuffKey {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum BuffValue {
   Float(f32),
   Integer(i32)

@@ -6,4 +6,7 @@ edition = "2021"
 [dependencies]
 quick-xml = { version = "0.31.0" }
 thiserror = { version = "1.0" }
-uuid = { version = "1.7.0" }
+uuid = { version = "1.7.0", optional = true }
+
+[features]
+uuid = ["dep:uuid"]

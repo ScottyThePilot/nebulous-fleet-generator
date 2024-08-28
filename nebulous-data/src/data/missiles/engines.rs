@@ -1,5 +1,8 @@
 use crate::utils::lerp2;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 
 
 /// Gravitational constant.
@@ -50,6 +53,7 @@ impl Engine {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct EngineSettings {
   pub top_speed: f32,
   pub burn_duration: f32,
@@ -93,6 +97,7 @@ impl Default for EngineSettings {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct EngineSetupInfo {
   pub speed: f32,
   pub thrust: f32,

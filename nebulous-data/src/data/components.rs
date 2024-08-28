@@ -4,6 +4,8 @@ use super::{Buff, Buffs, Faction, MissileSize};
 use crate::utils::{ContiguousExt, Size};
 
 use bytemuck::Contiguous;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use std::fmt;
 use std::num::NonZeroUsize as zsize;
@@ -136,6 +138,7 @@ impl Component {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ComponentKind {
   Mount, Compartment, Module
 }
@@ -302,6 +305,7 @@ pub enum MissileLauncherCells {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ComponentKey {
   ActivelyCooledAmplifiers,
   AdaptiveRadarReceiver,

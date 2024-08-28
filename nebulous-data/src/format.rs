@@ -12,10 +12,12 @@ use self::key::Key;
 use bytemuck::Contiguous;
 #[cfg(feature = "rand")]
 use rand::Rng;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes, Element, Nodes, Attributes};
 
 #[doc(no_inline)]
-pub use nebulous_xml::uuid::Uuid;
+pub use uuid::Uuid;
 #[doc(no_inline)]
 pub use nebulous_xml::{read_nodes, write_nodes};
 
@@ -59,6 +61,8 @@ impl From<xml::DeserializeErrorWrapper<xml::Error>> for FormatError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Root<T> {
   pub element: T
 }
@@ -88,6 +92,7 @@ impl<T> SerializeNodes for Root<T> where T: SerializeElement<Error = Infallible>
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Fleet {
   pub name: String,
   pub total_points: usize,
@@ -147,6 +152,7 @@ impl SerializeElement for Fleet {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Ship {
   pub key: Uuid,
   pub name: String,
@@ -266,6 +272,7 @@ impl SerializeElement for Ship {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct HullSocket {
   pub key: Key,
   pub component_name: ComponentKey,
@@ -300,6 +307,7 @@ impl SerializeElement for HullSocket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ComponentData {
   BulkMagazineData {
     load: Vec<MagazineSaveData>
@@ -411,6 +419,7 @@ impl SerializeElement for ComponentData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MagazineSaveData {
   pub magazine_key: Key,
   // This is here rather than MunitionKey since these can reference custom missiles, which have unique names.
@@ -450,6 +459,7 @@ impl SerializeElement for MagazineSaveData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct WeaponGroup {
   pub name: String,
   pub members: Vec<Key>
@@ -484,6 +494,7 @@ impl SerializeElement for WeaponGroup {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct InitialFormation {
   pub guide_key: Uuid,
   pub relative_position: Vector3<f32>
@@ -513,6 +524,7 @@ impl SerializeElement for InitialFormation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum HullConfig {
   RandomHullConfiguration {
     primary_structure: [SegmentConfiguration; 3],
@@ -569,6 +581,7 @@ impl SerializeElement for HullConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct SegmentConfiguration {
   pub key: Uuid,
   pub dressing: Vec<usize>
@@ -600,6 +613,7 @@ impl SerializeElement for SegmentConfiguration {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct SecondaryStructureConfig {
   pub key: Uuid,
   pub segment: usize,
@@ -633,6 +647,7 @@ impl SerializeElement for SecondaryStructureConfig {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileTemplate {
   pub associated_template_name: Option<String>,
   pub designation: String,
@@ -714,6 +729,7 @@ impl SerializeElement for MissileTemplate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileSocket {
   pub size: zsize,
   pub installed_component: Option<MissileComponent>
@@ -744,6 +760,7 @@ impl SerializeElement for MissileSocket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileComponent {
   /// Only `None` when this component is an engine.
   pub component_key: Option<MissileComponentKey>,
@@ -858,6 +875,7 @@ impl SerializeElement for MissileComponent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum MissileComponentSettings {
   ActiveSeekerSettings {
     // Mode, RejectUnvalidated, DetectPDTargets
@@ -963,6 +981,7 @@ fn serialize_settings(settings: MissileComponentSettings) -> Result<(&'static st
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct DefensiveDoctrine {
   pub target_size_mask: MissileSizeMask,
   pub target_type: DefensiveTargetType,
@@ -1026,6 +1045,7 @@ impl SerializeElement for DefensiveDoctrine {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum DefensiveTargetType {
   #[default] All, Conventional, Hybrid
 }
@@ -1064,6 +1084,7 @@ xml::impl_serialize_nodes_display!(DefensiveTargetType);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum MissileComponentKey {
   // Seeker Components
   CommandReceiver,
@@ -1164,6 +1185,7 @@ xml::impl_deserialize_nodes_parse!(MissileComponentKey);
 xml::impl_serialize_nodes_display!(MissileComponentKey);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileSizeMask {
   pub size1: bool,
   pub size2: bool,
@@ -1232,6 +1254,7 @@ pub struct InvalidMissileSizeMask(char);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum MissileRole {
   #[default] Offensive, Defensive
 }
@@ -1268,6 +1291,7 @@ xml::impl_serialize_nodes_display!(MissileRole);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum AntiRadiationTargetType {
   #[default] All, JammingOnly
 }
@@ -1304,6 +1328,7 @@ xml::impl_serialize_nodes_display!(AntiRadiationTargetType);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum Ordering {
   Ascending, #[default] Descending, Equal
 }
@@ -1343,6 +1368,7 @@ xml::impl_serialize_nodes_display!(Ordering);
 
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Color {
   pub r: f32,
   pub g: f32,
@@ -1386,6 +1412,7 @@ impl SerializeNodes for Color {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Vector3<T> {
   pub x: T,
   pub y: T,
@@ -1429,6 +1456,7 @@ impl<T> SerializeNodes for Vector3<T> where T: SerializeNodes {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Vector2<T> {
   pub x: T,
   pub y: T

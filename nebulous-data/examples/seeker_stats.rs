@@ -1,10 +1,17 @@
-use nebulous_data::data::missiles::seekers::SeekerStrategyEntry;
+use nebulous_data::data::missiles::seekers::{
+  SeekerStrategyEntry,
+  COUNTERMEASURE_PROBABILITIES_VS_ALLIANCE,
+  COUNTERMEASURE_PROBABILITIES_VS_PROTECTORATE
+};
 
 fn main() {
   let display = nebulous_data::utils::anonymous_fmt_display(|f| {
     for entry in SeekerStrategyEntry::get_entries_cached() {
+
       let defeat_probability = entry.get_defeat_probability_default();
       let defeat_probability_no_ewar = entry.get_defeat_probability_default_no_ewar();
+      let defeat_probability_vs_alliance = entry.get_defeat_probability(COUNTERMEASURE_PROBABILITIES_VS_ALLIANCE);
+      let defeat_probability_vs_protectorate = entry.get_defeat_probability(COUNTERMEASURE_PROBABILITIES_VS_PROTECTORATE);
 
       let min_cost = entry.seeker_strategy.min_cost();
       let max_cost = entry.seeker_strategy.max_cost();
@@ -17,6 +24,8 @@ fn main() {
 
       writeln!(f, "- Defeat probability: **{:.2}%**", defeat_probability * 100.0)?;
       writeln!(f, "- Defeat probability (no EWAR): **{:.2}%**", defeat_probability_no_ewar * 100.0)?;
+      writeln!(f, "- Defeat probability (vs Alliance): **{:.2}%**", defeat_probability_vs_alliance * 100.0)?;
+      writeln!(f, "- Defeat probability (vs Protectorate): **{:.2}%**", defeat_probability_vs_protectorate * 100.0)?;
 
       if entry.countermeasure_methods.is_empty() {
         writeln!(f, "- Cannot be defeated")?;

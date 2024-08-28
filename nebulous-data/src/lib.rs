@@ -6,10 +6,16 @@
 )]
 
 pub extern crate bytemuck;
+extern crate float_ord;
 extern crate itertools;
 pub extern crate nebulous_xml as xml;
+#[cfg(feature = "rand")]
+extern crate rand;
+#[cfg(feature = "serde")]
+extern crate serde;
 #[macro_use]
 extern crate thiserror;
+pub extern crate uuid;
 
 #[macro_export]
 macro_rules! key {

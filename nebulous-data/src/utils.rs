@@ -1,6 +1,6 @@
 use bytemuck::Contiguous;
 use itertools::Itertools;
-use nebulous_xml::uuid::Uuid;
+use uuid::Uuid;
 #[cfg(feature = "rand")]
 use rand::Rng;
 
@@ -13,7 +13,7 @@ use std::ops::RangeInclusive;
 
 #[cfg(feature = "rand")]
 pub fn gen_uuid<R: Rng + ?Sized>(rng: &mut R) -> Uuid {
-  const MASK: Uuid = nebulous_xml::uuid::uuid!("ffffffff-ffff-4fff-bfff-ffffffffffff");
+  const MASK: Uuid = uuid::uuid!("ffffffff-ffff-4fff-bfff-ffffffffffff");
   Uuid::from_u128(rng.gen::<u128>() & MASK.as_u128())
 }
 

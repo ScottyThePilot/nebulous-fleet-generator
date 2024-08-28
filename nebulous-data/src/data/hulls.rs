@@ -12,6 +12,8 @@ use bytemuck::Contiguous;
 use rand::distributions::Distribution;
 #[cfg(feature = "rand")]
 use rand::Rng;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use std::fmt;
 use std::str::FromStr;
@@ -72,6 +74,7 @@ impl HullSocket {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum HullKey {
   SprinterCorvette,
   RainesFrigate,

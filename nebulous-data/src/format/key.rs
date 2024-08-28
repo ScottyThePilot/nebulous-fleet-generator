@@ -2,6 +2,7 @@
 use rand::distributions::{Distribution, Standard};
 #[cfg(feature = "rand")]
 use rand::Rng;
+use uuid::Uuid;
 
 use std::fmt;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
@@ -61,6 +62,11 @@ impl Key {
     std::str::from_utf8(buf).unwrap()
   }
 
+  #[inline]
+  pub const fn to_uuid(self) -> Uuid {
+    Uuid::from_bytes(self.to_bytes())
+  }
+
   pub const fn from_bytes(bytes: KeyBytes) -> Self {
     Self { inner: bytes }
   }
@@ -93,6 +99,11 @@ impl Key {
     Some(Key {
       inner: inner.to_be_bytes()
     })
+  }
+
+  #[inline]
+  pub const fn from_uuid(uuid: Uuid) -> Self {
+    Self::from_bytes(uuid.into_bytes())
   }
 
   #[inline]
@@ -153,6 +164,24 @@ impl FromStr for Key {
 #[derive(Debug, Error, Clone, Copy)]
 #[error("failed to decode key")]
 pub struct KeyFromStrError;
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Key {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where D: serde::Deserializer<'de> {
+    <String as serde::Deserialize>::deserialize(deserializer).and_then(|s| {
+      Uuid::parse_str(&s).map(Key::from_uuid).map_err(serde::de::Error::custom)
+    })
+  }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Key {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where S: serde::Serializer {
+    <Uuid as serde::Serialize>::serialize(&self.to_uuid(), serializer)
+  }
+}
 
 xml::impl_deserialize_nodes_parse!(Key);
 xml::impl_serialize_nodes_display!(Key);

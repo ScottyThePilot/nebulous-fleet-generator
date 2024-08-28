@@ -1,5 +1,6 @@
 //! XML Parser/Encoder wrapper and deserialization/serialization framework.
 
+#[cfg(feature = "uuid")]
 pub extern crate uuid;
 
 use quick_xml::reader::Reader;
@@ -243,7 +244,11 @@ impl_deserialize_nodes_parse! {
   std::net::Ipv6Addr,
   std::net::SocketAddr,
   std::net::SocketAddrV4,
-  std::net::SocketAddrV6,
+  std::net::SocketAddrV6
+}
+
+#[cfg(feature = "uuid")]
+impl_deserialize_nodes_parse! {
   uuid::Uuid
 }
 
@@ -285,6 +290,7 @@ impl_serialize_nodes_display! {
   std::net::SocketAddrV6
 }
 
+#[cfg(feature = "uuid")]
 impl SerializeNodes for uuid::Uuid {
   type Error = Infallible;
 

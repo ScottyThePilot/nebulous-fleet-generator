@@ -3,6 +3,8 @@ use crate::data::Faction;
 use crate::utils::ContiguousExt;
 
 use bytemuck::Contiguous;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use std::fmt;
 use std::str::FromStr;
@@ -60,6 +62,7 @@ impl MissileBodyVariant {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileComponentsMask {
   pub allow_seekers: bool,
   pub allow_auxiliary: bool,
@@ -82,6 +85,7 @@ impl MissileComponentsMask {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum MissileBodyKey {
   SGM1Balestra,
   SGM2Tempest,

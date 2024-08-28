@@ -3,6 +3,8 @@ use crate::utils::ContiguousExt;
 
 use bytemuck::Contiguous;
 use itertools::Itertools;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use std::fmt;
 use std::num::NonZeroUsize as zsize;
@@ -15,6 +17,7 @@ use std::sync::OnceLock;
 /// A seeker that can be chosen in game.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SeekerKey {
   Command,
   FixedActiveRadar,
@@ -90,6 +93,7 @@ impl fmt::Display for SeekerKey {
 /// Describes a seeker's method of operation.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SeekerKind {
   Command,
   ActiveRadar,
@@ -238,6 +242,7 @@ impl fmt::Display for SeekerKind {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SeekerMode {
   Targeting,
   Validation
@@ -271,6 +276,7 @@ impl fmt::Display for SeekerMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct SeekerCost {
   pub targeting: f32,
   pub validation: f32
@@ -310,6 +316,7 @@ impl Index<SeekerMode> for SeekerCost {
 pub type SeekerStrategyFull = SeekerStrategy<SeekerKey>;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct SeekerStrategy<S: Copy = SeekerKind> {
   pub primary: S,
   pub secondaries: Box<[(S, SeekerMode)]>
@@ -525,6 +532,7 @@ fn has_redundancy(seekers: &[SeekerKind]) -> bool {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct SeekerStrategyEntry {
   pub seeker_strategy: SeekerStrategy,
   pub countermeasure_methods: Box<[CountermeasuresMask]>
@@ -567,6 +575,7 @@ impl SeekerStrategyEntry {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum Countermeasure {
   RadarJamming,
   CommsJamming,
@@ -609,6 +618,7 @@ impl fmt::Display for Countermeasure {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum CountermeasureCategory {
   /// Creates false target(s) which decieve or confuse the seeker.
   /// May be countered through validating seekers.
@@ -640,6 +650,7 @@ pub type CountermeasureProbabilities = CountermeasureMatrix<f32>;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct CountermeasureMatrix<T> {
   /// Radar jamming, such as from the 'Blanket' jammer.
   pub radar_jamming: T,
@@ -954,10 +965,13 @@ impl<T> Not for CountermeasureMatrix<T> where T: Not {
   }
 }
 
+/// A matrix of base probabilities for estimating the employment of any given countermeasure,
+/// with EWAR countermeasure probabilities set to 0%.
 pub const COUNTERMEASURE_PROBABILITIES_NO_EWAR: CountermeasureProbabilities = {
   CountermeasureMatrix { radar_jamming: 0.0, comms_jamming: 0.0, ..COUNTERMEASURE_PROBABILITIES }
 };
 
+/// A matrix of base probabilities for estimating the employment of any given countermeasure.
 pub const COUNTERMEASURE_PROBABILITIES: CountermeasureProbabilities = {
   CountermeasureMatrix {
     radar_jamming: 0.90,
@@ -968,6 +982,24 @@ pub const COUNTERMEASURE_PROBABILITIES: CountermeasureProbabilities = {
     active_decoy: 0.50,
     cut_engines: 0.20,
     cut_radar: 0.05
+  }
+};
+
+/// A matrix of base probabilities for estimating the employment of any given countermeasure by the Alliance.
+pub const COUNTERMEASURE_PROBABILITIES_VS_ALLIANCE: CountermeasureProbabilities = {
+  CountermeasureMatrix {
+    laser_dazzler: 0.0,
+    ..COUNTERMEASURE_PROBABILITIES
+  }
+};
+
+/// A matrix of base probabilities for estimating the employment of any given countermeasure by the Protectorate.
+pub const COUNTERMEASURE_PROBABILITIES_VS_PROTECTORATE: CountermeasureProbabilities = {
+  CountermeasureMatrix {
+    // only the ocello has access to comms jamming, so the chance of comms jamming is lower
+    comms_jamming: COUNTERMEASURE_PROBABILITIES.comms_jamming / 2.0,
+    active_decoy: 0.0,
+    ..COUNTERMEASURE_PROBABILITIES
   }
 };
 

@@ -1,5 +1,8 @@
 use super::MissileSize;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use std::fmt;
 use std::str::FromStr;
 
@@ -54,6 +57,7 @@ pub struct MunitionDamage {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum WeaponRole {
   /// Usable for offensive purposes, only.
   Offensive,
@@ -67,6 +71,7 @@ pub enum WeaponRole {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum MunitionFamily {
   BallisticMagnetic15mm,
   BallisticChemical20mm,
@@ -103,6 +108,7 @@ impl MunitionFamily {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum MunitionKey {
   A15mmSandshot,
   A20mmSlug,

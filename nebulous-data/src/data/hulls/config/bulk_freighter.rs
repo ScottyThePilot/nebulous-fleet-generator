@@ -1,13 +1,13 @@
 use crate::format::{Color, Vector3, HullConfig, SegmentConfiguration, SecondaryStructureConfig};
 use super::Variant;
 
-use nebulous_xml::uuid::{Uuid, uuid};
 #[cfg(feature = "rand")]
 use rand::distributions::Distribution;
 #[cfg(feature = "rand")]
 use rand::seq::SliceRandom;
 #[cfg(feature = "rand")]
 use rand::Rng;
+use uuid::{Uuid, uuid};
 
 use std::array::from_fn as array_from_fn;
 use std::iter::repeat_with;
