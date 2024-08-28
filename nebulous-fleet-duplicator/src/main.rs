@@ -16,8 +16,13 @@ fn main() {
   let out_path = args.next().map(PathBuf::from).unwrap_or_else(|| {
     let file_stem = in_path.file_stem().expect("invalid path");
     let extension = in_path.extension().expect("invalid path");
-    let mut file_name = file_stem.to_owned();
-    file_name.push(" (2x)");
+
+    let (mut file_name, mul) = match file_stem.to_str().and_then(strip_multiplier) {
+      Some((file_stem_stripped, mul)) => (file_stem_stripped.into(), mul),
+      None => (file_stem.to_owned(), 1)
+    };
+
+    file_name.push(format!(" ({}x)", mul * 2));
     file_name.push(".");
     file_name.push(extension);
 
@@ -47,6 +52,16 @@ fn main() {
   println!("successfully wrote fleet to {}", out_path.display());
 
   pause();
+}
+
+fn strip_multiplier(s: &str) -> Option<(&str, usize)> {
+  s.rsplit_once('(').and_then(|(rest, s)| {
+    let rest = rest.trim_end();
+    s.trim_end().strip_suffix(')').and_then(|n| {
+      n.trim_matches(|c: char| c.is_whitespace() || c == 'x' || c == 'X')
+        .parse::<usize>().ok().map(|n| (rest, n))
+    })
+  })
 }
 
 fn pause() {
