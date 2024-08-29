@@ -33,5 +33,7 @@ pub use crate::utils::Size;
 pub mod prelude {
   #[doc(no_inline)]
   pub use bytemuck::Contiguous;
+  pub use uuid::Uuid;
+  pub use crate::format::key::Key;
   pub use crate::utils::{ContiguousExt, Lerp, lerp, lerp2, Size};
 }

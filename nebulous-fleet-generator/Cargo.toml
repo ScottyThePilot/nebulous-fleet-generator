@@ -4,10 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-float-ord = { version = "0.3.2" }
-nebulous-data = { path = "../nebulous-data" }
-rand = { version = "0.8.5", default-features = false, features = ["std", "getrandom"] }
-rand_xoshiro = { version = "0.6.0" }
-serde = { version = "1.0", features = ["derive", "rc"] }
-singlefile = { version = "0.2.1", default-features = false }
-singlefile-formats = { version = "0.2.1", features = ["toml-serde"] }
+nebulous-data = { path = "../nebulous-data", features = ["rand", "serde"] }
+rand = { version = "0.8.5", default-features = false, features = ["std"] }
+serde = { version = "1.0", features = ["derive"] }
