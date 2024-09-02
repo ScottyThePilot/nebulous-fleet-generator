@@ -139,6 +139,7 @@ impl Component {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum ComponentKind {
   Mount, Compartment, Module
 }
@@ -272,11 +273,31 @@ pub fn fire_rate(reload_time: f32, autoloader: Option<Autoloader>) -> f32 {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum SigType {
+  #[cfg_attr(feature = "serde", serde(alias = "eo"))]
   ElectroOptical,
   Radar,
   Comms
 }
+
+impl FromStr for SigType {
+  type Err = ParseSigTypeError;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "electro_optical" | "eo" => Ok(Self::ElectroOptical),
+      "radar" => Ok(Self::Radar),
+      "comms" => Ok(Self::Comms),
+      _ => Err(ParseSigTypeError)
+    }
+  }
+}
+
+#[derive(Debug, Error, Clone, Copy, PartialEq, Eq, Default)]
+#[error("failed to parse signature type")]
+pub struct ParseSigTypeError;
 
 #[derive(Debug, Clone, Copy)]
 pub struct FireControl {
@@ -303,9 +324,26 @@ pub enum MissileLauncherCells {
   }
 }
 
+impl MissileLauncherCells {
+  pub fn get_count(self, socket_size: Size, component_size: Size) -> Option<usize> {
+    match self {
+      Self::Constant { count } => Some(count),
+      Self::Tiling { count_per_group, .. } => {
+        let size = Size::div(socket_size, component_size);
+        Some(size.x * size.y * count_per_group)
+      },
+      Self::Function { count_per_group, groups } => {
+        let [x, y] = groups(socket_size)?;
+        Some(x * y * count_per_group)
+      }
+    }
+  }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum ComponentKey {
   ActivelyCooledAmplifiers,
   AdaptiveRadarReceiver,
@@ -1199,6 +1237,7 @@ pub mod list {
         groups: |size| match size {
           // CLS-3 is not available for 3x4x3 mounts on the Raines or Keystone,
           // but *is* available for 3x4x3 mounts on the Axford and Solomon, not sure why.
+          Size { x: 3, y, z: 3 } if y >= 4 => Some([1, 2]), // 4
           Size { x: 3, y, z: 5 } if y >= 4 => Some([1, 3]), // 6
           Size { x: 6, y, z: 6 } if y >= 4 => Some([2, 4]), // 16
           Size { x: 8, y, z: 8 } if y >= 4 => Some([2, 5]), // 20

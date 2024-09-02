@@ -1,6 +1,7 @@
 pub mod key;
 
 use crate::data::{Faction, MissileSize};
+use crate::data::hulls::config::Variant;
 use crate::data::hulls::HullKey;
 use crate::data::missiles::Maneuvers;
 use crate::data::missiles::bodies::MissileBodyKey;
@@ -19,7 +20,7 @@ use xml::{DeserializeElement, DeserializeNodes, SerializeElement, SerializeNodes
 #[doc(no_inline)]
 pub use uuid::Uuid;
 #[doc(no_inline)]
-pub use nebulous_xml::{read_nodes, write_nodes};
+pub use xml::{read_nodes, write_nodes};
 
 use std::convert::Infallible;
 use std::fmt;
@@ -172,22 +173,10 @@ impl Ship {
   /// Keys will be randomized so that placing this ship into a fleet with the original produces a valid fleet.
   #[cfg(feature = "rand")]
   pub fn dupe<R: Rng + ?Sized>(&self, rng: &mut R) -> Self {
-    use crate::data::hulls::config::{bulk_freighter, container_liner};
-
     let key = crate::utils::gen_uuid(rng);
 
     let hull_config = self.hull_config.as_deref().and_then(|hull_config| {
-      match self.hull_type {
-        HullKey::MarauderLineShip => Some({
-          let variants = bulk_freighter::get_variants(hull_config)?;
-          Box::new(rng.sample(bulk_freighter::HullConfigBulkFreighter { variants }))
-        }),
-        HullKey::MoorlineLineShip => Some({
-          let variants = container_liner::get_variants(hull_config)?;
-          Box::new(rng.sample(container_liner::HullConfigContainerLiner { variants }))
-        }),
-        _ => None
-      }
+      hull_config.recycle(self.hull_type, rng).map(Box::new)
     });
 
     let hull_config = hull_config.or_else(|| {
@@ -308,6 +297,7 @@ impl SerializeElement for HullSocket {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case", tag = "type"))]
 pub enum ComponentData {
   BulkMagazineData {
     load: Vec<MagazineSaveData>
@@ -525,12 +515,35 @@ impl SerializeElement for InitialFormation {
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case", tag = "type"))]
 pub enum HullConfig {
   RandomHullConfiguration {
     primary_structure: [SegmentConfiguration; 3],
     secondary_structure: SecondaryStructureConfig,
     hull_tint: Color,
     texture_variation: Vector3<f32>
+  }
+}
+
+impl HullConfig {
+  #[cfg(feature = "rand")]
+  pub fn new<R: Rng + ?Sized>(hull_key: HullKey, rng: &mut R) -> Option<Self> {
+    Self::from_variants(hull_key, rng.gen::<[Variant; 3]>(), rng)
+  }
+
+  #[cfg(feature = "rand")]
+  pub fn from_variants<R: Rng + ?Sized>(hull_key: HullKey, variants: [Variant; 3], rng: &mut R) -> Option<Self> {
+    hull_key.hull().config_template.map(|config_template| {
+      rng.sample(config_template.with_variants(variants))
+    })
+  }
+
+  #[cfg(feature = "rand")]
+  pub fn recycle<R: Rng + ?Sized>(&self, hull_key: HullKey, rng: &mut R) -> Option<Self> {
+    hull_key.hull().config_template.and_then(|config_template| {
+      let variants = config_template.get_variants(self)?;
+      Some(rng.sample(config_template.with_variants(variants)))
+    })
   }
 }
 
@@ -876,6 +889,7 @@ impl SerializeElement for MissileComponent {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case", tag = "type"))]
 pub enum MissileComponentSettings {
   ActiveSeekerSettings {
     // Mode, RejectUnvalidated, DetectPDTargets
@@ -1046,6 +1060,7 @@ impl SerializeElement for DefensiveDoctrine {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum DefensiveTargetType {
   #[default] All, Conventional, Hybrid
 }
@@ -1085,6 +1100,7 @@ xml::impl_serialize_nodes_display!(DefensiveTargetType);
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum MissileComponentKey {
   // Seeker Components
   CommandReceiver,
@@ -1255,6 +1271,7 @@ pub struct InvalidMissileSizeMask(char);
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum MissileRole {
   #[default] Offensive, Defensive
 }
@@ -1292,6 +1309,7 @@ xml::impl_serialize_nodes_display!(MissileRole);
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum AntiRadiationTargetType {
   #[default] All, JammingOnly
 }
@@ -1329,6 +1347,7 @@ xml::impl_serialize_nodes_display!(AntiRadiationTargetType);
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum Ordering {
   Ascending, #[default] Descending, Equal
 }

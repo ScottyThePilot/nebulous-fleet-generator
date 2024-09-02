@@ -1,5 +1,6 @@
 use super::MissileSize;
 
+use float_ord::FloatOrd;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +59,7 @@ pub struct MunitionDamage {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum WeaponRole {
   /// Usable for offensive purposes, only.
   Offensive,
@@ -72,6 +74,7 @@ pub enum WeaponRole {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum MunitionFamily {
   BallisticMagnetic15mm,
   BallisticChemical20mm,
@@ -104,30 +107,56 @@ impl MunitionFamily {
       key.munition().family == self && key.munition().role == role
     })
   }
+
+  pub fn max_range(self) -> Option<f32> {
+    self.keys()
+      .map(|munition_key| munition_key.munition().max_range)
+      .max_by_key(|&max_range| FloatOrd(max_range))
+  }
 }
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum MunitionKey {
+  #[cfg_attr(feature = "serde", serde(rename = "x15mm_sandshot", alias = "15mm_sandshot"))]
   A15mmSandshot,
+  #[cfg_attr(feature = "serde", serde(rename = "x20mm_slug", alias = "20mm_slug"))]
   A20mmSlug,
+  #[cfg_attr(feature = "serde", serde(rename = "x100mm_ap", alias = "100mm_ap"))]
   A100mmAP,
+  #[cfg_attr(feature = "serde", serde(rename = "x100mm_grape", alias = "100mm_grape"))]
   A100mmGrape,
+  #[cfg_attr(feature = "serde", serde(rename = "x100mm_he", alias = "100mm_he"))]
   A100mmHE,
+  #[cfg_attr(feature = "serde", serde(rename = "x100mm_hehc", alias = "100mm_hehc"))]
   A100mmHEHC,
+  #[cfg_attr(feature = "serde", serde(rename = "x120mm_ap", alias = "120mm_ap"))]
   A120mmAP,
+  #[cfg_attr(feature = "serde", serde(rename = "x120mm_he", alias = "120mm_he"))]
   A120mmHE,
+  #[cfg_attr(feature = "serde", serde(rename = "x120mm_herpf", alias = "120mm_herpf"))]
   A120mmHERPF,
+  #[cfg_attr(feature = "serde", serde(rename = "x250mm_ap", alias = "250mm_ap"))]
   A250mmAP,
+  #[cfg_attr(feature = "serde", serde(rename = "x250mm_he", alias = "250mm_he"))]
   A250mmHE,
+  #[cfg_attr(feature = "serde", serde(rename = "x250mm_herpf", alias = "250mm_herpf"))]
   A250mmHERPF,
+  #[cfg_attr(feature = "serde", serde(rename = "x300mm_ap_rail_sabot", alias = "300mm_ap_rail_sabot"))]
   A300mmAPRailSabot,
+  #[cfg_attr(feature = "serde", serde(rename = "x400mm_plasma_ampoule", alias = "400mm_plasma_ampoule"))]
   A400mmPlasmaAmpoule,
+  #[cfg_attr(feature = "serde", serde(rename = "x450mm_ap", alias = "450mm_ap"))]
   A450mmAP,
+  #[cfg_attr(feature = "serde", serde(rename = "x450mm_he", alias = "450mm_he"))]
   A450mmHE,
+  #[cfg_attr(feature = "serde", serde(rename = "x500mm_fracturing_block", alias = "500mm_fracturing_block"))]
   A500mmFracturingBlock,
+  #[cfg_attr(feature = "serde", serde(rename = "x600mm_bomb", alias = "600mm_bomb"))]
   A600mmBomb,
+  #[cfg_attr(feature = "serde", serde(rename = "x600mm_hesh", alias = "600mm_hesh"))]
   A600mmHESH,
   CM4D1DecoyContainerClipper,
   CM4D2DecoyContainerLineShip,

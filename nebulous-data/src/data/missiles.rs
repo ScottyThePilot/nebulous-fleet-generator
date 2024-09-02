@@ -14,6 +14,7 @@ use std::str::FromStr;
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum AuxiliaryKey {
   ColdGasBottle,
   DecoyLauncher,
@@ -28,6 +29,7 @@ pub enum AuxiliaryKey {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum AvionicsKey {
   DirectGuidance,
   CruiseGuidance
@@ -46,9 +48,13 @@ impl AvionicsKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum WarheadKey {
+  #[cfg_attr(feature = "serde", serde(rename = "he_impact"))]
   HEImpact,
+  #[cfg_attr(feature = "serde", serde(rename = "he_kinetic_penetrator"))]
   HEKineticPenetrator,
+  #[cfg_attr(feature = "serde", serde(rename = "blast_fragmentation"))]
   BlastFragmentation,
+  #[cfg_attr(feature = "serde", serde(rename = "blast_fragmentation_el"))]
   BlastFragmentationEL
 }
 
@@ -61,6 +67,7 @@ impl fmt::Display for Maneuvers {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum Maneuvers {
   #[default] None, Weave, Corkscrew
 }

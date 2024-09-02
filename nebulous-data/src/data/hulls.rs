@@ -4,14 +4,9 @@ use crate::format::key::Key;
 use crate::utils::{ContiguousExt, Size};
 use super::{Buff, Direction, Faction};
 use super::components::ComponentKind;
-use self::config::bulk_freighter::HullConfigBulkFreighterFull;
-use self::config::container_liner::HullConfigContainerLinerFull;
+use self::config::HullConfigTemplateFull;
 
 use bytemuck::Contiguous;
-#[cfg(feature = "rand")]
-use rand::distributions::Distribution;
-#[cfg(feature = "rand")]
-use rand::Rng;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +33,13 @@ pub struct Hull {
   pub buffs: &'static [Buff],
   pub sockets: &'static [HullSocket],
   pub socket_symmetries: &'static [(Key, Key)],
-  pub config_template: Option<HullConfigTemplate>
+  pub config_template: Option<HullConfigTemplateFull>
+}
+
+impl Hull {
+  pub fn get_socket(self, key: Key) -> Option<&'static HullSocket> {
+    self.sockets.iter().find(|hull_socket| hull_socket.save_key == key)
+  }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -75,6 +76,7 @@ impl HullSocket {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum HullKey {
   SprinterCorvette,
   RainesFrigate,
@@ -82,11 +84,21 @@ pub enum HullKey {
   VauxhallLightCruiser,
   AxfordHeavyCruiser,
   SolomonBattleship,
+  /// Formerly known as the Shuttle Clipper
+  #[cfg_attr(feature = "serde", serde(alias = "shuttle_clipper"))]
   FerrymanClipper,
+  /// Formerly known as the Tugboat Clipper
+  #[cfg_attr(feature = "serde", serde(alias = "tugboat_clipper"))]
   DraugrClipper,
+  /// Formerly known as the Cargo Feeder Monitor
+  #[cfg_attr(feature = "serde", serde(alias = "cargo_feeder_monitor"))]
   FlatheadMonitor,
   OcelloCommandCruiser,
+  /// Formerly known as the Bulk Freighter Line Ship
+  #[cfg_attr(feature = "serde", serde(alias = "bulk_freighter_line_ship"))]
   MarauderLineShip,
+  /// Formerly known as the Container Liner Line Ship
+  #[cfg_attr(feature = "serde", serde(alias = "container_liner_line_ship"))]
   MoorlineLineShip
 }
 
@@ -132,23 +144,6 @@ impl FromStr for HullKey {
 impl fmt::Display for HullKey {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     f.write_str(self.save_key())
-  }
-}
-
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
-pub enum HullConfigTemplate {
-  BulkFreighter,
-  ContainerLiner
-}
-
-#[cfg(feature = "rand")]
-impl Distribution<crate::format::HullConfig> for HullConfigTemplate {
-  fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> crate::format::HullConfig {
-    match self {
-      Self::BulkFreighter => HullConfigBulkFreighterFull.sample(rng),
-      Self::ContainerLiner => HullConfigContainerLinerFull.sample(rng)
-    }
   }
 }
 
@@ -704,7 +699,7 @@ pub mod list {
       (key!("8pltGexHAEyFL2ljOe0oMQ"), key!("tcQfj6XOHUWFSAx_W0cc1A")),
       (key!("Sb5-VSuwlkWpT6ViRiJ3vg"), key!("6ZiODnoXqkaNWvaqyGjnwg"))
     ],
-    config_template: Some(HullConfigTemplate::BulkFreighter)
+    config_template: Some(HullConfigTemplateFull::BULK_FREIGHTER)
   };
 
   pub const MOORLINE_LINE_SHIP: Hull = Hull {
@@ -757,6 +752,6 @@ pub mod list {
       (key!("VkODw--0zk-K4FkajpPjwQ"), key!("F-nHNZm4Z0WZMJakJAwlPw")),
       (key!("y70HHuLWd0uphO2H-hvZGQ"), key!("NjfVPFfJqUmkw-AR_2KBjg"))
     ],
-    config_template: Some(HullConfigTemplate::ContainerLiner)
+    config_template: Some(HullConfigTemplateFull::CONTAINER_LINER)
   };
 }

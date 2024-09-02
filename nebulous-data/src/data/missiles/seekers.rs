@@ -18,6 +18,7 @@ use std::sync::OnceLock;
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum SeekerKey {
   Command,
   FixedActiveRadar,
@@ -94,6 +95,7 @@ impl fmt::Display for SeekerKey {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum SeekerKind {
   Command,
   ActiveRadar,
@@ -243,6 +245,7 @@ impl fmt::Display for SeekerKind {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum SeekerMode {
   Targeting,
   Validation
@@ -576,6 +579,7 @@ impl SeekerStrategyEntry {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum Countermeasure {
   RadarJamming,
   CommsJamming,
@@ -619,6 +623,7 @@ impl fmt::Display for Countermeasure {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum CountermeasureCategory {
   /// Creates false target(s) which decieve or confuse the seeker.
   /// May be countered through validating seekers.

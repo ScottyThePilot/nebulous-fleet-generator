@@ -86,6 +86,7 @@ impl MissileComponentsMask {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Contiguous)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum MissileBodyKey {
   SGM1Balestra,
   SGM2Tempest,

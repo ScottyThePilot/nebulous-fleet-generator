@@ -1,6 +1,70 @@
 pub mod bulk_freighter;
 pub mod container_liner;
 
+use crate::format::HullConfig;
+
+#[cfg(feature = "rand")]
+use rand::distributions::{Distribution, Standard};
+#[cfg(feature = "rand")]
+use rand::Rng;
+
+
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum HullConfigTemplate {
+  BulkFreighter(self::bulk_freighter::HullConfigBulkFreighter),
+  ContainerLiner(self::container_liner::HullConfigContainerLiner)
+}
+
+#[cfg(feature = "rand")]
+impl Distribution<crate::format::HullConfig> for HullConfigTemplate {
+  fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> crate::format::HullConfig {
+    match self {
+      Self::BulkFreighter(config) => config.sample(rng),
+      Self::ContainerLiner(config) => config.sample(rng)
+    }
+  }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum HullConfigTemplateFull {
+  BulkFreighter(self::bulk_freighter::HullConfigBulkFreighterFull),
+  ContainerLiner(self::container_liner::HullConfigContainerLinerFull)
+}
+
+impl HullConfigTemplateFull {
+  pub const BULK_FREIGHTER: Self = Self::BulkFreighter(self::bulk_freighter::HullConfigBulkFreighterFull);
+  pub const CONTAINER_LINER: Self = Self::ContainerLiner(self::container_liner::HullConfigContainerLinerFull);
+
+  pub const fn with_variants(self, variants: [Variant; 3]) -> HullConfigTemplate {
+    match self {
+      Self::BulkFreighter(config) => HullConfigTemplate::BulkFreighter(config.with_variants(variants)),
+      Self::ContainerLiner(config) => HullConfigTemplate::ContainerLiner(config.with_variants(variants))
+    }
+  }
+
+  pub fn get_variants(self, hull_config: &HullConfig) -> Option<[Variant; 3]> {
+    match self {
+      Self::BulkFreighter(..) => self::bulk_freighter::get_variants(hull_config),
+      Self::ContainerLiner(..) => self::container_liner::get_variants(hull_config)
+    }
+  }
+}
+
+#[cfg(feature = "rand")]
+impl Distribution<crate::format::HullConfig> for HullConfigTemplateFull {
+  fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> crate::format::HullConfig {
+    match self {
+      Self::BulkFreighter(config) => config.sample(rng),
+      Self::ContainerLiner(config) => config.sample(rng)
+    }
+  }
+}
+
+
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Variant {
@@ -34,10 +98,26 @@ impl Variant {
   }
 }
 
-#[cfg(feature = "rand")]
-use rand::distributions::{Distribution, Standard};
-#[cfg(feature = "rand")]
-use rand::Rng;
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Variant {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where D: serde::Deserializer<'de> {
+    <u32 as serde::Deserialize>::deserialize(deserializer).and_then(|num| {
+      Self::from_num(num).ok_or(serde::de::Error::invalid_value(
+        serde::de::Unexpected::Unsigned(num as u64),
+        &"an integer between 1 and 3"
+      ))
+    })
+  }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Variant {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where S: serde::Serializer {
+    <u8 as serde::Serialize>::serialize(&(*self as u8), serializer)
+  }
+}
 
 #[cfg(feature = "rand")]
 impl Distribution<Variant> for Standard {

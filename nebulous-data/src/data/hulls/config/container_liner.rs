@@ -12,6 +12,8 @@ use uuid::{Uuid, uuid};
 use std::array::from_fn as array_from_fn;
 use std::iter::repeat_with;
 
+/// A distribution that allows a [`HullConfig`] to be generated for a Container Liner
+/// with the three body variants specified ahead of time and all other aspects randomized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HullConfigContainerLiner {
   pub variants: [Variant; 3]
@@ -54,8 +56,16 @@ impl Distribution<HullConfig> for HullConfigContainerLiner {
   }
 }
 
+/// A distribution that allows a [`HullConfig`] to be generated for a Container Liner
+/// with all aspects randomized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HullConfigContainerLinerFull;
+
+impl HullConfigContainerLinerFull {
+  pub const fn with_variants(self, variants: [Variant; 3]) -> HullConfigContainerLiner {
+    HullConfigContainerLiner { variants }
+  }
+}
 
 #[cfg(feature = "rand")]
 impl Distribution<HullConfig> for HullConfigContainerLinerFull {

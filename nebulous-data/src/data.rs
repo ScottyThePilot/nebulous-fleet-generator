@@ -69,8 +69,11 @@ pub enum InvalidKey {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum Faction {
+  #[cfg_attr(feature = "serde", serde(alias = "ans"))]
   Alliance,
+  #[cfg_attr(feature = "serde", serde(alias = "osp"))]
   Protectorate
 }
 
@@ -111,9 +114,13 @@ impl fmt::Display for Faction {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum MissileSize {
+  #[cfg_attr(feature = "serde", serde(alias = "1"))]
   Size1 = 1,
+  #[cfg_attr(feature = "serde", serde(alias = "2"))]
   Size2 = 2,
+  #[cfg_attr(feature = "serde", serde(alias = "3"))]
   Size3 = 3
 }
 
@@ -128,9 +135,27 @@ impl MissileSize {
   }
 }
 
+impl FromStr for MissileSize {
+  type Err = ParseMissileSizeError;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s {
+      "size1" | "1" => Ok(MissileSize::Size1),
+      "size2" | "2" => Ok(MissileSize::Size2),
+      "size3" | "3" => Ok(MissileSize::Size3),
+      _ => Err(ParseMissileSizeError)
+    }
+  }
+}
+
+#[derive(Debug, Error, Clone, Copy, PartialEq, Eq, Default)]
+#[error("failed to parse missile size")]
+pub struct ParseMissileSizeError;
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum Direction {
   Up, Down, Left, Right, Fore, Aft
 }
@@ -268,6 +293,7 @@ impl FromIterator<Buff> for Buffs {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum Buff {
   AngularThrust(f32),
   BurstDurationBeam(f32),
@@ -367,6 +393,7 @@ impl Buff {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum BuffKey {
   AngularThrust,
   BurstDurationBeam,
@@ -416,6 +443,7 @@ pub enum BuffKey {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum BuffValue {
   Float(f32),
   Integer(i32)

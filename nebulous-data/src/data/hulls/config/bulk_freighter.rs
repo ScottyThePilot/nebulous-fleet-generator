@@ -12,6 +12,8 @@ use uuid::{Uuid, uuid};
 use std::array::from_fn as array_from_fn;
 use std::iter::repeat_with;
 
+/// A distribution that allows a [`HullConfig`] to be generated for a Bulk Freighter
+/// with the three body variants specified ahead of time and all other aspects randomized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HullConfigBulkFreighter {
   pub variants: [Variant; 3]
@@ -54,8 +56,16 @@ impl Distribution<HullConfig> for HullConfigBulkFreighter {
   }
 }
 
+/// A distribution that allows a [`HullConfig`] to be generated for a Bulk Freighter
+/// with all aspects randomized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HullConfigBulkFreighterFull;
+
+impl HullConfigBulkFreighterFull {
+  pub const fn with_variants(self, variants: [Variant; 3]) -> HullConfigBulkFreighter {
+    HullConfigBulkFreighter { variants }
+  }
+}
 
 #[cfg(feature = "rand")]
 impl Distribution<HullConfig> for HullConfigBulkFreighterFull {
