@@ -71,8 +71,12 @@ impl ShipState {
         for magazine_save_data in load.iter() {
           if let Ok(munition_key) = magazine_save_data.munition_key.parse::<MunitionKey>() {
             *magazine_contents.entry(munition_key).or_default() += magazine_save_data.quantity;
-          } else {
-            // TODO: get from missile template and add cost to cost_budget_spare
+          } else if let Some(munition_key) = magazine_save_data.munition_key.strip_prefix("$MODMIS$/") {
+            if let Some(missile_template) = missile_types.iter().find(|missile_template| {
+              missile_template.associated_template_name.as_deref() == Some(munition_key)
+            }) {
+              // TODO: get from missile template and add cost to cost_budget_spare
+            };
           };
         };
 
