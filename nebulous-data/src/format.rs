@@ -1,13 +1,15 @@
 pub mod key;
 
 use crate::data::{Faction, MissileSize};
+use crate::data::components::ComponentKey;
 use crate::data::hulls::config::Variant;
 use crate::data::hulls::HullKey;
 use crate::data::missiles::Maneuvers;
 use crate::data::missiles::bodies::MissileBodyKey;
 use crate::data::missiles::seekers::SeekerMode;
 use crate::data::missiles::engines::EngineSettings;
-use crate::data::components::ComponentKey;
+use crate::data::munitions::MunitionKey;
+use crate::utils::Size;
 use self::key::Key;
 
 use bytemuck::Contiguous;
@@ -23,9 +25,10 @@ pub use uuid::Uuid;
 pub use xml::{read_nodes, write_nodes};
 
 use std::convert::Infallible;
+use std::collections::HashMap;
 use std::fmt;
 use std::num::NonZeroUsize as zsize;
-use std::ops::Index;
+use std::ops::{Add, AddAssign, Index};
 use std::str::FromStr;
 
 
@@ -112,6 +115,15 @@ impl Fleet {
       self.ships.push(self.ships[i].dupe(rng));
     };
   }
+
+  pub fn calculate_costs(&self, missile_templates: &[MissileTemplate]) -> Costs {
+    let mut costs = Costs::default();
+    for ship in self.ships.iter() {
+      costs += ship.calculate_costs(missile_templates);
+    };
+
+    costs
+  }
 }
 
 impl DeserializeElement for Fleet {
@@ -169,6 +181,66 @@ pub struct Ship {
 }
 
 impl Ship {
+  pub fn calculate_costs(&self, missile_templates: &[MissileTemplate]) -> Costs {
+    let mut costs = Costs::default();
+
+    let hull = self.hull_type.hull();
+    costs.hulls += hull.point_cost;
+
+    let mut component_compounding_groups = HashMap::new();
+    for hull_socket in self.socket_map.iter() {
+      if let Some(hull_socket_definition) = hull.get_socket(hull_socket.key) {
+        let component = hull_socket.component_name.component();
+
+        if let Some(cost) = component.cost(hull_socket_definition.size) {
+          if let Some(compounding_cost) = component.compounding {
+            component_compounding_groups.entry(compounding_cost)
+              .or_insert_with(Vec::new).push(cost);
+          } else {
+            costs.components += cost;
+          };
+        };
+
+        let load = hull_socket.component_data.as_ref()
+          .and_then(ComponentData::get_load).unwrap_or(&[]);
+        for &MagazineSaveData { ref munition_key, quantity, .. } in load {
+          if let Ok(munition_key) = munition_key.parse::<MunitionKey>() {
+            costs.ammunition += munition_key.munition().point_cost * quantity;
+          } else if let Some(munition_key) = munition_key.strip_prefix("$MODMIS$/") {
+            if let Some(missile_template) = missile_templates.iter().find(|missile_template| {
+              missile_template.associated_template_name.as_deref() == Some(munition_key)
+            }) {
+              costs.missiles += missile_template.calculate_cost() * quantity;
+            };
+          };
+        };
+      };
+    };
+
+    for (compounding_cost_class, mut component_costs) in component_compounding_groups {
+      component_costs.sort();
+
+      // first instance free appears to deduct the cost of the component with the most expensive base cost
+      if compounding_cost_class.first_instance_free() {
+        component_costs.pop();
+      };
+
+      let multiplier = compounding_cost_class.multiplier();
+      if multiplier == 0 {
+        costs.components += component_costs.into_iter().sum::<usize>();
+      } else {
+        // compounding appears to place more expensive components earlier
+        // in the calculation, thus giving them lower compounding costs
+        for (cost, i) in component_costs.into_iter().rev().enumerate() {
+          let modifier = if i == 0 { 1 } else { i * multiplier };
+          costs.components += cost * modifier;
+        };
+      };
+    };
+
+    costs
+  }
+
   /// Creates a duplicate of this ship.
   /// Keys will be randomized so that placing this ship into a fleet with the original produces a valid fleet.
   #[cfg(feature = "rand")]
@@ -673,6 +745,13 @@ pub struct MissileTemplate {
   pub base_color: Color,
   pub stripe_color: Color,
   pub sockets: Vec<MissileSocket>
+}
+
+impl MissileTemplate {
+  pub fn calculate_cost(&self) -> usize {
+    // TODO: actually calculate the cost, perhaps we should not trust this number
+    self.cost
+  }
 }
 
 impl DeserializeElement for MissileTemplate {
@@ -1510,5 +1589,41 @@ impl<T> SerializeNodes for Vector2<T> where T: SerializeNodes {
     let y = Element::new("y", self.y.serialize_nodes()?);
 
     Ok(Nodes::from_iter([x, y]))
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct Costs {
+  pub hulls: usize,
+  pub components: usize,
+  pub ammunition: usize,
+  pub missiles: usize
+}
+
+impl Costs {
+  pub const fn total(self) -> usize {
+    self.hulls + self.components + self.ammunition + self.missiles
+  }
+}
+
+impl Add for Costs {
+  type Output = Self;
+
+  fn add(self, rhs: Self) -> Self::Output {
+    Costs {
+      hulls: self.hulls + rhs.hulls,
+      components: self.components + rhs.components,
+      ammunition: self.ammunition + rhs.ammunition,
+      missiles: self.missiles + rhs.missiles
+    }
+  }
+}
+
+impl AddAssign for Costs {
+  fn add_assign(&mut self, rhs: Self) {
+    self.hulls += rhs.hulls;
+    self.components += rhs.components;
+    self.ammunition += rhs.ammunition;
+    self.missiles += rhs.missiles;
   }
 }

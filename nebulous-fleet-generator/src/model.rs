@@ -5,7 +5,7 @@ use nebulous_data::data::hulls::HullKey;
 use nebulous_data::data::hulls::config::Variant;
 use nebulous_data::data::munitions::{MunitionFamily, MunitionKey, WeaponRole};
 use nebulous_data::data::{Faction, MissileSize};
-use nebulous_data::format::{ComponentData, HullConfig, HullSocket, MissileTemplate, Ship};
+use nebulous_data::format::{ComponentData, MissileTemplate, Ship};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Extend;
@@ -24,35 +24,33 @@ pub enum ShipName {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ShipState {
   pub name: ShipName,
+  #[serde(skip_serializing_if = "Option::is_none", default)]
   pub author: Option<String>,
   pub role: String,
+  pub hull_type: HullKey,
+  #[serde(skip_serializing_if = "Option::is_none", default)]
+  pub hull_config: Option<[Variant; 3]>,
   pub cost_budget_total: usize,
   pub cost_budget_spare: usize,
-  pub hull_type: HullKey,
-  pub hull_config: Option<[Variant; 3]>,
   pub components: Box<[Option<ComponentState>]>,
   pub equipment_summary: EquipmentSummary
 }
 
 impl ShipState {
-  pub fn from_ship(ship: &Ship, missile_types: &[MissileTemplate]) -> Self {
-    // TODO: calculate full cost and add to cost_budget_total
-
-    let mut cost_budget_total = 0;
-    let mut cost_budget_spare = 0;
+  pub fn from_ship(ship: &Ship, missile_templates: &[MissileTemplate]) -> Self {
     let mut component_map = HashMap::new();
     let mut equipment_summary = EquipmentSummary::default();
 
     let hull = ship.hull_type.hull();
     for hull_socket in ship.socket_map.iter() {
-      let Some(hull_socket_size) = hull.get_socket(hull_socket.key).map(|hs| hs.size) else { continue };
+      let Some(hull_socket_definition) = hull.get_socket(hull_socket.key) else { continue };
       let component = hull_socket.component_name.component();
 
       equipment_summary.add_component_key(hull_socket.component_name);
 
       if let Some(ComponentVariant::WeaponMissileBank { munition_family, cells, .. }) = component.variant {
         if let Some(missile_type) = MissileType::from_munition_family(munition_family) {
-          if let Some(count) = cells.get_count(hull_socket_size, component.size) {
+          if let Some(count) = cells.get_count(hull_socket_definition.size, component.size) {
             *equipment_summary.missile_cells.entry(missile_type).or_default() += count;
           };
         };
@@ -71,12 +69,6 @@ impl ShipState {
         for magazine_save_data in load.iter() {
           if let Ok(munition_key) = magazine_save_data.munition_key.parse::<MunitionKey>() {
             *magazine_contents.entry(munition_key).or_default() += magazine_save_data.quantity;
-          } else if let Some(munition_key) = magazine_save_data.munition_key.strip_prefix("$MODMIS$/") {
-            if let Some(missile_template) = missile_types.iter().find(|missile_template| {
-              missile_template.associated_template_name.as_deref() == Some(munition_key)
-            }) {
-              // TODO: get from missile template and add cost to cost_budget_spare
-            };
           };
         };
 
@@ -97,14 +89,16 @@ impl ShipState {
     let hull_config = ship.hull_config.as_ref().zip(hull.config_template)
       .and_then(|(hull_config, config_template)| config_template.get_variants(hull_config));
 
+    let costs = ship.calculate_costs(missile_templates);
+
     ShipState {
       name: ShipName::Text(ship.name.clone()),
       author: None,
       role: "unknown".to_string(),
-      cost_budget_total,
-      cost_budget_spare,
       hull_type: ship.hull_type,
       hull_config,
+      cost_budget_total: costs.total(),
+      cost_budget_spare: costs.missiles,
       components,
       equipment_summary
     }
