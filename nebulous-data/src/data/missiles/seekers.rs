@@ -32,6 +32,19 @@ pub enum SeekerKey {
 }
 
 impl SeekerKey {
+  pub const fn save_key(self) -> &'static str {
+    match self {
+      Self::Command => "Stock/Command Receiver",
+      Self::FixedActiveRadar => "Stock/Fixed Active Radar Seeker",
+      Self::SteerableActiveRadar => "Stock/Steerable Active Radar Seeker",
+      Self::SteerableExtendedActiveRadar => "Stock/Steerable Extended Active Radar Seeker",
+      Self::FixedSemiActiveRadar => "Stock/Fixed Semi-Active Radar Seeker",
+      Self::FixedAntiRadiation | Self::FixedHomeOnJam => "Stock/Fixed Anti-Radiation Seeker",
+      Self::ElectroOptical => "Stock/Electro-Optical Seeker",
+      Self::WakeHoming => "Stock/Wake-Homing Seeker"
+    }
+  }
+
   pub const fn cost(self) -> SeekerCost {
     match self {
       Self::Command => SeekerCost::new(3.50, 3.00),

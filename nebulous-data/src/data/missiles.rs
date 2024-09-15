@@ -26,6 +26,25 @@ pub enum AuxiliaryKey {
   BoostedSelfScreeningJammer
 }
 
+impl AuxiliaryKey {
+  pub const fn save_key(self) -> &'static str {
+    match self {
+      Self::ColdGasBottle => "Stock/Cold Gas Bottle",
+      Self::DecoyLauncher => "Stock/Decoy Launcher",
+      Self::ClusterDecoyLauncher => "Stock/Cluster Decoy Launcher",
+      Self::FastStartupModule => "Stock/Fast Startup Module",
+      Self::HardenedSkin => "Stock/Hardened Skin",
+      Self::RadarAbsorbentCoating => "Stock/Radar Absorbent Coating",
+      Self::SelfScreeningJammer => "Stock/Self-Screening Jammer",
+      Self::BoostedSelfScreeningJammer => "Stock/Boosted Self-Screening Jammer"
+    }
+  }
+
+  pub const fn cost(self) -> usize {
+    todo!()
+  }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
@@ -38,9 +57,13 @@ pub enum AvionicsKey {
 impl AvionicsKey {
   pub const fn save_key(self) -> &'static str {
     match self {
-      AvionicsKey::DirectGuidance => "Stock/Direct Guidance",
-      AvionicsKey::CruiseGuidance => "Stock/Cruise Guidance"
+      Self::DirectGuidance => "Stock/Direct Guidance",
+      Self::CruiseGuidance => "Stock/Cruise Guidance"
     }
+  }
+
+  pub const fn cost(self) -> usize {
+    todo!()
   }
 }
 
@@ -56,6 +79,21 @@ pub enum WarheadKey {
   BlastFragmentation,
   #[cfg_attr(feature = "serde", serde(rename = "blast_fragmentation_el"))]
   BlastFragmentationEL
+}
+
+impl WarheadKey {
+  pub const fn save_key(self) -> &'static str {
+    match self {
+      Self::HEImpact => "Stock/HE Impact",
+      Self::HEKineticPenetrator => "Stock/HE Kinetic Penetrator",
+      Self::BlastFragmentation => "Stock/Blast Fragmentation",
+      Self::BlastFragmentationEL => "Stock/Blast Fragmentation EL"
+    }
+  }
+
+  pub const fn cost(self) -> usize {
+    todo!()
+  }
 }
 
 impl fmt::Display for Maneuvers {

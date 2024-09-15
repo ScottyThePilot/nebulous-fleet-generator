@@ -329,17 +329,34 @@ pub enum MissileLauncherCells {
 }
 
 impl MissileLauncherCells {
-  pub fn get_count(self, socket_size: Size, component_size: Size) -> Option<usize> {
+  pub fn get_tiling_size(self, socket_size: Size, component_size: Size) -> Option<[usize; 2]> {
     match self {
-      Self::Constant { count } => Some(count),
-      Self::Tiling { count_per_group, .. } => {
+      Self::Constant { .. } => None,
+      Self::Tiling { .. } => {
         let size = Size::div(socket_size, component_size);
-        Some(size.x * size.y * count_per_group)
+        Some([size.x, size.y])
       },
-      Self::Function { count_per_group, groups } => {
-        let [x, y] = groups(socket_size)?;
-        Some(x * y * count_per_group)
+      Self::Function { groups, .. } => {
+        groups(socket_size)
       }
+    }
+  }
+
+  pub fn get_count_per_group(self) -> usize {
+    match self {
+      Self::Constant { count } => count,
+      Self::Tiling { count_per_group, .. } => count_per_group,
+      Self::Function { count_per_group, .. } => count_per_group
+    }
+  }
+
+  pub fn get_count(self, socket_size: Size, component_size: Size) -> Option<usize> {
+    if let Self::Constant { count } = self {
+      Some(count)
+    } else {
+      self.get_tiling_size(socket_size, component_size).map(|size| {
+        size[0] * size[1] * self.get_count_per_group()
+      })
     }
   }
 }

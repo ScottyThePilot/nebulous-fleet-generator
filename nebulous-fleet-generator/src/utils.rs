@@ -166,3 +166,27 @@ where T: FromStr, T::Err: ToString {
     Token::Symbol(..) => Err(Simple::expected_input_found(span, None, Some(token)))
   })
 }
+
+pub mod serde_base64_cbor {
+  use serde::de::{Deserialize, DeserializeOwned, Deserializer};
+  use serde::ser::{Serialize, Serializer};
+  use singlefile::FileFormatUtf8;
+  use singlefile_formats::base64::Base64;
+  use singlefile_formats::cbor_serde::Cbor;
+
+  const FORMAT: Base64<Cbor> = Base64::with_standard(Cbor);
+
+  pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+  where D: Deserializer<'de>, T: DeserializeOwned + Serialize {
+    String::deserialize(deserializer).and_then(|string| {
+      FORMAT.from_string_buffer(&string).map_err(serde::de::Error::custom)
+    })
+  }
+
+  pub fn serialize<S, T>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+  where S: Serializer, T: DeserializeOwned + Serialize {
+    FORMAT.to_string_buffer(value)
+      .map_err(serde::ser::Error::custom)
+      .and_then(|string| string.serialize(serializer))
+  }
+}

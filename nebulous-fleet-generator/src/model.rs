@@ -3,9 +3,10 @@ pub mod predicate;
 use nebulous_data::data::components::{ComponentKey, ComponentVariant, SigType};
 use nebulous_data::data::hulls::HullKey;
 use nebulous_data::data::hulls::config::Variant;
+use nebulous_data::data::missiles::bodies::MissileBodyKey;
 use nebulous_data::data::munitions::{MunitionFamily, MunitionKey, WeaponRole};
-use nebulous_data::data::{Faction, MissileSize};
-use nebulous_data::format::{ComponentData, MissileTemplate, Ship};
+use nebulous_data::data::MissileSize;
+use nebulous_data::format::{ComponentData, Color, MissileTemplate, MissileSocket, Ship};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Extend;
@@ -32,14 +33,16 @@ pub struct ShipState {
   pub hull_config: Option<[Variant; 3]>,
   pub cost_budget_total: usize,
   pub cost_budget_spare: usize,
-  pub components: Box<[Option<ComponentState>]>,
-  pub equipment_summary: EquipmentSummary
+  pub equipment_summary: EquipmentSummary,
+  #[serde(rename = "socket_data")]
+  #[serde(with = "crate::utils::serde_base64_cbor")]
+  pub sockets: Box<[Option<SocketState>]>
 }
 
 impl ShipState {
   pub fn from_ship(ship: &Ship, missile_templates: &[MissileTemplate]) -> Self {
-    let mut component_map = HashMap::new();
     let mut equipment_summary = EquipmentSummary::default();
+    let mut component_map = HashMap::new();
 
     let hull = ship.hull_type.hull();
     for hull_socket in ship.socket_map.iter() {
@@ -75,16 +78,16 @@ impl ShipState {
         magazine_contents
       });
 
-      component_map.insert(hull_socket.key, ComponentState {
+      component_map.insert(hull_socket.key, SocketState {
         component_key: hull_socket.component_name,
         identity_option,
         magazine_contents
       });
     };
 
-    let components = hull.sockets.iter()
+    let sockets = hull.sockets.iter()
       .map(|hull_socket| component_map.remove(&hull_socket.save_key))
-      .collect::<Box<[Option<ComponentState>]>>();
+      .collect::<Box<[Option<SocketState>]>>();
 
     let hull_config = ship.hull_config.as_ref().zip(hull.config_template)
       .and_then(|(hull_config, config_template)| config_template.get_variants(hull_config));
@@ -99,14 +102,14 @@ impl ShipState {
       hull_config,
       cost_budget_total: costs.total(),
       cost_budget_spare: costs.missiles,
-      components,
-      equipment_summary
+      equipment_summary,
+      sockets
     }
   }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ComponentState {
+pub struct SocketState {
   pub component_key: ComponentKey,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub identity_option: Option<usize>,
@@ -114,9 +117,29 @@ pub struct ComponentState {
   pub magazine_contents: Option<BTreeMap<MunitionKey, usize>>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MissileData {
+  pub designation: String,
+  pub nickname: String,
+  pub body_key: MissileBodyKey,
+  pub base_color: Color,
+  pub stripe_color: Color,
+  #[serde(rename = "socket_data")]
+  #[serde(with = "crate::utils::serde_base64_cbor")]
+  pub sockets: Box<[MissileSocket]>
+}
 
+impl MissileData {
+  pub fn from_missile_template(missile_template: &MissileTemplate) -> Self {
+    MissileData {
+      designation: missile_template.designation.clone(),
+      nickname: missile_template.nickname.clone(),
+      body_key: missile_template.body_key,
+      base_color: missile_template.base_color,
+      stripe_color: missile_template.stripe_color,
+      sockets: missile_template.sockets.clone().into_boxed_slice()
+    }
+  }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]

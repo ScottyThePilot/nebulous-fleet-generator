@@ -4,9 +4,9 @@ use crate::data::{Faction, MissileSize};
 use crate::data::components::ComponentKey;
 use crate::data::hulls::config::Variant;
 use crate::data::hulls::HullKey;
-use crate::data::missiles::Maneuvers;
+use crate::data::missiles::{AuxiliaryKey, AvionicsKey, Maneuvers, WarheadKey};
 use crate::data::missiles::bodies::MissileBodyKey;
-use crate::data::missiles::seekers::SeekerMode;
+use crate::data::missiles::seekers::{SeekerMode, SeekerKey};
 use crate::data::missiles::engines::EngineSettings;
 use crate::data::munitions::MunitionKey;
 use crate::utils::Size;
@@ -1212,28 +1212,77 @@ pub enum MissileComponentKey {
 impl MissileComponentKey {
   pub const fn save_key(self) -> &'static str {
     match self {
-      Self::CommandReceiver => "Stock/Command Receiver",
-      Self::FixedActiveRadarSeeker => "Stock/Fixed Active Radar Seeker",
-      Self::SteerableActiveRadarSeeker => "Stock/Steerable Active Radar Seeker",
-      Self::SteerableExtendedActiveRadarSeeker => "Stock/Steerable Extended Active Radar Seeker",
-      Self::FixedSemiActiveRadarSeeker => "Stock/Fixed Semi-Active Radar Seeker",
-      Self::FixedAntiRadiationSeeker => "Stock/Fixed Anti-Radiation Seeker",
-      Self::ElectroOpticalSeeker => "Stock/Electro-Optical Seeker",
-      Self::WakeHomingSeeker => "Stock/Wake-Homing Seeker",
-      Self::ColdGasBottle => "Stock/Cold Gas Bottle",
-      Self::DecoyLauncher => "Stock/Decoy Launcher",
-      Self::ClusterDecoyLauncher => "Stock/Cluster Decoy Launcher",
-      Self::FastStartupModule => "Stock/Fast Startup Module",
-      Self::HardenedSkin => "Stock/Hardened Skin",
-      Self::RadarAbsorbentCoating => "Stock/Radar Absorbent Coating",
-      Self::SelfScreeningJammer => "Stock/Self-Screening Jammer",
-      Self::BoostedSelfScreeningJammer => "Stock/Boosted Self-Screening Jammer",
-      Self::DirectGuidance => "Stock/Direct Guidance",
-      Self::CruiseGuidance => "Stock/Cruise Guidance",
-      Self::HEImpact => "Stock/HE Impact",
-      Self::HEKineticPenetrator => "Stock/HE Kinetic Penetrator",
-      Self::BlastFragmentation => "Stock/Blast Fragmentation",
-      Self::BlastFragmentationEL => "Stock/Blast Fragmentation EL",
+      Self::CommandReceiver => SeekerKey::Command.save_key(),
+      Self::FixedActiveRadarSeeker => SeekerKey::FixedActiveRadar.save_key(),
+      Self::SteerableActiveRadarSeeker => SeekerKey::SteerableActiveRadar.save_key(),
+      Self::SteerableExtendedActiveRadarSeeker => SeekerKey::SteerableExtendedActiveRadar.save_key(),
+      Self::FixedSemiActiveRadarSeeker => SeekerKey::FixedSemiActiveRadar.save_key(),
+      Self::FixedAntiRadiationSeeker => SeekerKey::FixedAntiRadiation.save_key(),
+      Self::ElectroOpticalSeeker => SeekerKey::ElectroOptical.save_key(),
+      Self::WakeHomingSeeker => SeekerKey::WakeHoming.save_key(),
+
+      Self::ColdGasBottle => AuxiliaryKey::ColdGasBottle.save_key(),
+      Self::DecoyLauncher => AuxiliaryKey::DecoyLauncher.save_key(),
+      Self::ClusterDecoyLauncher => AuxiliaryKey::ClusterDecoyLauncher.save_key(),
+      Self::FastStartupModule => AuxiliaryKey::FastStartupModule.save_key(),
+      Self::HardenedSkin => AuxiliaryKey::HardenedSkin.save_key(),
+      Self::RadarAbsorbentCoating => AuxiliaryKey::RadarAbsorbentCoating.save_key(),
+      Self::SelfScreeningJammer => AuxiliaryKey::SelfScreeningJammer.save_key(),
+      Self::BoostedSelfScreeningJammer => AuxiliaryKey::BoostedSelfScreeningJammer.save_key(),
+
+      Self::DirectGuidance => AvionicsKey::DirectGuidance.save_key(),
+      Self::CruiseGuidance => AvionicsKey::CruiseGuidance.save_key(),
+
+      Self::HEImpact => WarheadKey::HEImpact.save_key(),
+      Self::HEKineticPenetrator => WarheadKey::HEKineticPenetrator.save_key(),
+      Self::BlastFragmentation => WarheadKey::BlastFragmentation.save_key(),
+      Self::BlastFragmentationEL => WarheadKey::BlastFragmentationEL.save_key()
+    }
+  }
+
+  pub const fn to_seeker_key(self) -> Option<SeekerKey> {
+    match self {
+      Self::CommandReceiver => Some(SeekerKey::Command),
+      Self::FixedActiveRadarSeeker => Some(SeekerKey::FixedActiveRadar),
+      Self::SteerableActiveRadarSeeker => Some(SeekerKey::SteerableActiveRadar),
+      Self::SteerableExtendedActiveRadarSeeker => Some(SeekerKey::SteerableExtendedActiveRadar),
+      Self::FixedSemiActiveRadarSeeker => Some(SeekerKey::FixedSemiActiveRadar),
+      Self::FixedAntiRadiationSeeker => Some(SeekerKey::FixedAntiRadiation),
+      Self::ElectroOpticalSeeker => Some(SeekerKey::ElectroOptical),
+      Self::WakeHomingSeeker => Some(SeekerKey::WakeHoming),
+      _ => None
+    }
+  }
+
+  pub const fn to_auxiliary_key(self) -> Option<AuxiliaryKey> {
+    match self {
+      Self::ColdGasBottle => Some(AuxiliaryKey::ColdGasBottle),
+      Self::DecoyLauncher => Some(AuxiliaryKey::DecoyLauncher),
+      Self::ClusterDecoyLauncher => Some(AuxiliaryKey::ClusterDecoyLauncher),
+      Self::FastStartupModule => Some(AuxiliaryKey::FastStartupModule),
+      Self::HardenedSkin => Some(AuxiliaryKey::HardenedSkin),
+      Self::RadarAbsorbentCoating => Some(AuxiliaryKey::RadarAbsorbentCoating),
+      Self::SelfScreeningJammer => Some(AuxiliaryKey::SelfScreeningJammer),
+      Self::BoostedSelfScreeningJammer => Some(AuxiliaryKey::BoostedSelfScreeningJammer),
+      _ => None
+    }
+  }
+
+  pub const fn to_avionics_key(self) -> Option<AvionicsKey> {
+    match self {
+      Self::DirectGuidance => Some(AvionicsKey::DirectGuidance),
+      Self::CruiseGuidance => Some(AvionicsKey::CruiseGuidance),
+      _ => None
+    }
+  }
+
+  pub const fn to_warhead_key(self) -> Option<WarheadKey> {
+    match self {
+      Self::HEImpact => Some(WarheadKey::HEImpact),
+      Self::HEKineticPenetrator => Some(WarheadKey::HEKineticPenetrator),
+      Self::BlastFragmentation => Some(WarheadKey::BlastFragmentation),
+      Self::BlastFragmentationEL => Some(WarheadKey::BlastFragmentationEL),
+      _ => None
     }
   }
 }

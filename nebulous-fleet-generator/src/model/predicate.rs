@@ -12,7 +12,7 @@ use std::str::FromStr;
 
 
 #[derive(Debug, Clone)]
-pub enum Predicate {
+pub enum ShipPredicate {
   Any(Box<[Self]>),
   All(Box<[Self]>),
   Not(Box<Self>),
@@ -22,7 +22,7 @@ pub enum Predicate {
   Equipment(EquipmentPredicate)
 }
 
-impl Predicate {
+impl ShipPredicate {
   pub fn test(&self, ship_data: &ShipState) -> bool {
     match self {
       Self::All(predicates) => predicates.iter().all(|predicate| predicate.test(ship_data)),
@@ -36,7 +36,7 @@ impl Predicate {
   }
 }
 
-impl Parseable<Token> for Predicate {
+impl Parseable<Token> for ShipPredicate {
   fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
     recursive(|predicate| {
       let predicate_list = predicate.clone()
@@ -83,11 +83,11 @@ impl Parseable<Token> for Predicate {
   }
 }
 
-impl FromStr for Predicate {
+impl FromStr for ShipPredicate {
   type Err = crate::utils::Errors;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    crate::utils::run::<Predicate>(s)
+    crate::utils::run::<ShipPredicate>(s)
   }
 }
 

@@ -40,6 +40,13 @@ impl Hull {
   pub fn get_socket(self, key: Key) -> Option<&'static HullSocket> {
     self.sockets.iter().find(|hull_socket| hull_socket.save_key == key)
   }
+
+  /// The sum of the formation radii of two ships defines the minimum distance allowed between them in the editor.
+  /// The game will probably load fleet files with formations that are too close (or inside of each other) but
+  /// it's better to conform to the restrictions of the in-game editor.
+  pub fn formation_radius(self) -> f32 {
+    self.base_sig_radius * 1.35
+  }
 }
 
 #[derive(Debug, Clone, Copy)]
