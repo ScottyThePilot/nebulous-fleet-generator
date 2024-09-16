@@ -504,6 +504,14 @@ impl SeekerStrategyFull {
   pub fn cost(&self) -> f32 {
     self.iter().map(|(seeker, mode)| seeker.cost()[mode]).sum::<f32>()
   }
+
+  pub fn to_basic(&self) -> SeekerStrategy {
+    let primary = self.primary.seeker_kind();
+    let secondaries = self.secondaries.iter().copied()
+      .map(|(key, mode)| (key.seeker_kind(), mode))
+      .collect::<Box<[(SeekerKind, SeekerMode)]>>();
+    SeekerStrategy { primary, secondaries }
+  }
 }
 
 impl fmt::Display for SeekerStrategy {
