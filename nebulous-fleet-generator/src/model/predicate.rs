@@ -1,10 +1,11 @@
-use crate::model::{DistanceRealm, EquipmentSummary, PointDefenseType, ShipState, WeaponFamily};
+use crate::model::{DistanceRealm, ShipEquipmentSummary, PointDefenseType, ShipState, WeaponFamily};
 use crate::utils::{keyword, keyword_parse, keyword_match, symbol, Parseable, Symbol, Token};
 
 use chumsky::prelude::*;
 use nebulous_data::data::components::SigType;
 use nebulous_data::data::hulls::HullKey;
 use nebulous_data::data::MissileSize;
+use serde::de::{Deserialize, Deserializer};
 
 use std::ops::Range;
 use std::str::FromStr;
@@ -17,9 +18,10 @@ pub enum ShipPredicate {
   All(Box<[Self]>),
   Not(Box<Self>),
   HullType(HullKey),
+  Tag(String),
   CostBudgetTotal(Range<usize>),
   CostBudgetSpare(Range<usize>),
-  Equipment(EquipmentPredicate)
+  Equipment(ShipEquipmentPredicate)
 }
 
 impl ShipPredicate {
@@ -28,9 +30,10 @@ impl ShipPredicate {
       Self::All(predicates) => predicates.iter().all(|predicate| predicate.test(ship_data)),
       Self::Any(predicates) => predicates.iter().any(|predicate| predicate.test(ship_data)),
       Self::Not(predicate) => !predicate.test(ship_data),
+      Self::HullType(hull_key) => ship_data.hull_type == *hull_key,
+      Self::Tag(tag) => ship_data.tags.contains(tag),
       Self::CostBudgetTotal(cost_predicate) => cost_predicate.contains(&ship_data.cost_budget_total),
       Self::CostBudgetSpare(cost_predicate) => cost_predicate.contains(&ship_data.cost_budget_spare),
-      Self::HullType(hull_key) => ship_data.hull_type == *hull_key,
       Self::Equipment(equipment_predicate) => equipment_predicate.test(&ship_data.equipment_summary)
     }
   }
@@ -77,7 +80,7 @@ impl Parseable<Token> for ShipPredicate {
         keyword("cost_budget_spare").then(symbol(Symbol::Slash))
           .ignore_then(range.clone()).map(Self::CostBudgetTotal),
         keyword("equipment").then(symbol(Symbol::Slash))
-          .ignore_then(EquipmentPredicate::parser()).map(Self::Equipment),
+          .ignore_then(ShipEquipmentPredicate::parser()).map(Self::Equipment),
       ))
     })
   }
@@ -91,8 +94,16 @@ impl FromStr for ShipPredicate {
   }
 }
 
+impl<'de> Deserialize<'de> for ShipPredicate {
+  fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    String::deserialize(deserializer).and_then(|string| {
+      string.parse::<Self>().map_err(serde::de::Error::custom)
+    })
+  }
+}
+
 #[derive(Debug, Clone)]
-pub enum EquipmentPredicate {
+pub enum ShipEquipmentPredicate {
   Intelligence,
   Illuminator,
   DeceptionModule,
@@ -103,8 +114,8 @@ pub enum EquipmentPredicate {
   Weapon(WeaponFamilyPredicate)
 }
 
-impl EquipmentPredicate {
-  pub fn test(&self, equipment_summary: &EquipmentSummary) -> bool {
+impl ShipEquipmentPredicate {
+  pub fn test(&self, equipment_summary: &ShipEquipmentSummary) -> bool {
     match self {
       Self::Intelligence => equipment_summary.has_intelligence,
       Self::Illuminator => equipment_summary.has_illuminator,
@@ -120,7 +131,7 @@ impl EquipmentPredicate {
   }
 }
 
-impl Parseable<Token> for EquipmentPredicate {
+impl Parseable<Token> for ShipEquipmentPredicate {
   fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
     let sig_type_predicate = symbol(Symbol::Slash)
       .ignore_then(keyword_parse::<SigType>()).or_not().boxed();

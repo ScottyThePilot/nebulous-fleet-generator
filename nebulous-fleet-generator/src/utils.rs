@@ -5,14 +5,31 @@ use thiserror::Error;
 use std::hash::Hash;
 use std::ops::Range;
 use std::str::FromStr;
+use std::fmt;
+
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, )]
+pub struct FmtList<'t, T>(pub &'t [T]);
+
+impl<'t, T> fmt::Display for FmtList<'t, T> where T: fmt::Display {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    for (i, value) in self.0.into_iter().enumerate() {
+      if i != 0 { f.write_str(", ")? };
+      fmt::Display::fmt(value, f)?;
+    };
+
+    Ok(())
+  }
+}
 
 
 
 #[derive(Debug, Error)]
 pub enum Errors {
-  #[error("an error occured in stage 1")]
+  #[error("error(s) occured in parser stage 1: {}", FmtList(.0))]
   Stage1(Vec<Simple<char>>),
-  #[error("an error occured in stage 2")]
+  #[error("error(s) occured in parser stage 2: {}", FmtList(.0))]
   Stage2(Vec<Simple<Token>>)
 }
 
@@ -83,6 +100,15 @@ impl Parseable<char> for Token {
   }
 }
 
+impl fmt::Display for Token {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Token::Symbol(symbol) => fmt::Display::fmt(symbol, f),
+      Token::Ident(ident) => fmt::Display::fmt(ident, f)
+    }
+  }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Symbol {
@@ -123,6 +149,12 @@ impl Parseable<char> for Symbol {
   }
 }
 
+impl fmt::Display for Symbol {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str(self.to_str())
+  }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Ident {
   pub contents: Box<str>
@@ -134,6 +166,12 @@ impl Parseable<char> for Ident {
       .repeated().at_least(1)
       .collect::<String>().map(String::into_boxed_str)
       .map(|contents| Ident { contents })
+  }
+}
+
+impl fmt::Display for Ident {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str(&self.contents)
   }
 }
 
@@ -179,7 +217,8 @@ pub mod serde_base64_cbor {
   pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
   where D: Deserializer<'de>, T: DeserializeOwned + Serialize {
     String::deserialize(deserializer).and_then(|string| {
-      FORMAT.from_string_buffer(&string).map_err(serde::de::Error::custom)
+      FORMAT.from_string_buffer(&string)
+        .map_err(serde::de::Error::custom)
     })
   }
 
@@ -188,5 +227,32 @@ pub mod serde_base64_cbor {
     FORMAT.to_string_buffer(value)
       .map_err(serde::ser::Error::custom)
       .and_then(|string| string.serialize(serializer))
+  }
+}
+
+pub mod serde_one_or_many {
+  use serde::de::{Deserialize, Deserializer};
+  use serde::ser::{Serialize, Serializer};
+
+  #[derive(Deserialize)]
+  enum OneOrMany<T> {
+    Many(Vec<T>),
+    One(T)
+  }
+
+  pub fn deserialize<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+  where D: Deserializer<'de>, T: Deserialize<'de> {
+    OneOrMany::deserialize(deserializer).map(|values| match values {
+      OneOrMany::Many(many) => many,
+      OneOrMany::One(one) => vec![one]
+    })
+  }
+
+  pub fn serialize<S, T>(values: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
+  where S: Serializer, T: Serialize {
+    match <&[T; 1]>::try_from(values.as_slice()) {
+      Ok([value]) => value.serialize(serializer),
+      Err(..) => values.serialize(serializer)
+    }
   }
 }

@@ -1,12 +1,16 @@
 pub mod predicate;
 
+use self::predicate::ShipPredicate;
+
 use nebulous_data::data::components::{ComponentKey, ComponentVariant, SigType};
 use nebulous_data::data::hulls::HullKey;
 use nebulous_data::data::hulls::config::Variant;
+use nebulous_data::data::missiles::{AvionicsKey, Maneuvers, WarheadKey};
+use nebulous_data::data::missiles::seekers::{SeekerKind, SeekerStrategy};
 use nebulous_data::data::missiles::bodies::MissileBodyKey;
 use nebulous_data::data::munitions::{MunitionFamily, MunitionKey, WeaponRole};
 use nebulous_data::data::MissileSize;
-use nebulous_data::format::{ComponentData, Color, MissileTemplate, MissileSocket, Ship};
+use nebulous_data::format::{ComponentData, Color, MissileTemplate, MissileTemplateContents, MissileSocket, Ship};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Extend;
@@ -14,26 +18,46 @@ use std::str::FromStr;
 
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
-pub enum ShipName {
-  #[serde(rename = "text")]
-  Text(String),
-  #[serde(rename = "key")]
-  Key(String)
+const fn default_one() -> usize { 1 }
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct FleetStrategy {
+  pub selections: Vec<FleetStrategySelection>
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct FleetStrategySelection {
+  #[serde(default = "default_one")]
+  pub weight_initial: usize,
+  #[serde(default = "default_one")]
+  pub weight_additional: usize,
+  #[serde(default)]
+  pub predicates: FleetStrategyPredicates
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct FleetStrategyPredicates {
+  #[serde(skip_serializing, default)]
+  pub reject: Option<ShipPredicate>,
+  #[serde(skip_serializing, default)]
+  pub require: Option<ShipPredicate>,
+  #[serde(skip_serializing, default)]
+  pub prioritize: Option<ShipPredicate>
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ShipState {
-  pub name: ShipName,
+  #[serde(with = "crate::utils::serde_one_or_many")]
+  pub name: Vec<String>,
   #[serde(skip_serializing_if = "Option::is_none", default)]
   pub author: Option<String>,
-  pub role: String,
+  pub tags: HashSet<String>,
   pub hull_type: HullKey,
   #[serde(skip_serializing_if = "Option::is_none", default)]
   pub hull_config: Option<[Variant; 3]>,
   pub cost_budget_total: usize,
   pub cost_budget_spare: usize,
-  pub equipment_summary: EquipmentSummary,
+  pub equipment_summary: ShipEquipmentSummary,
   #[serde(rename = "socket_data")]
   #[serde(with = "crate::utils::serde_base64_cbor")]
   pub sockets: Box<[Option<SocketState>]>
@@ -41,7 +65,7 @@ pub struct ShipState {
 
 impl ShipState {
   pub fn from_ship(ship: &Ship, missile_templates: &[MissileTemplate]) -> Self {
-    let mut equipment_summary = EquipmentSummary::default();
+    let mut equipment_summary = ShipEquipmentSummary::default();
     let mut component_map = HashMap::new();
 
     let hull = ship.hull_type.hull();
@@ -95,9 +119,9 @@ impl ShipState {
     let costs = ship.calculate_costs(missile_templates);
 
     ShipState {
-      name: ShipName::Text(ship.name.clone()),
+      name: vec![ship.name.clone()],
       author: None,
-      role: "unknown".to_string(),
+      tags: HashSet::new(),
       hull_type: ship.hull_type,
       hull_config,
       cost_budget_total: costs.total(),
@@ -121,9 +145,14 @@ pub struct SocketState {
 pub struct MissileData {
   pub designation: String,
   pub nickname: String,
+  #[serde(skip_serializing_if = "Option::is_none", default)]
+  pub author: Option<String>,
+  pub tags: HashSet<String>,
   pub body_key: MissileBodyKey,
   pub base_color: Color,
   pub stripe_color: Color,
+  #[serde(skip_serializing_if = "Option::is_none", default)]
+  pub equipment_summary: Option<MissileEquipmentSummary>,
   #[serde(rename = "socket_data")]
   #[serde(with = "crate::utils::serde_base64_cbor")]
   pub sockets: Box<[MissileSocket]>
@@ -134,17 +163,94 @@ impl MissileData {
     MissileData {
       designation: missile_template.designation.clone(),
       nickname: missile_template.nickname.clone(),
+      author: None,
+      tags: HashSet::new(),
       body_key: missile_template.body_key,
       base_color: missile_template.base_color,
       stripe_color: missile_template.stripe_color,
+      equipment_summary: MissileEquipmentSummary::from_missile_template_contents(&missile_template.contents()),
       sockets: missile_template.sockets.clone().into_boxed_slice()
+    }
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct MissileEquipmentSummary {
+  pub kind: MissileKind,
+  pub seekers: SeekerStrategy,
+  pub warhead: WarheadKind,
+  pub avionics: AvionicsKey,
+  pub maneuvers: Maneuvers,
+  pub countermissile: bool
+}
+
+impl MissileEquipmentSummary {
+  pub fn from_missile_template_contents(missile_template_contents: &MissileTemplateContents) -> Option<Self> {
+    let kind = MissileKind::from_missile_body_key(missile_template_contents.body_key);
+    let seekers = missile_template_contents.seekers.as_ref()?.to_basic();
+    let warhead = <&[_; 1]>::try_from(missile_template_contents.warheads.as_slice())
+      .ok().map(|&[(warhead_key, _)]| WarheadKind::from_warhead_key(warhead_key))?;
+    let (avionics, maneuvers, defensive_doctrine) = missile_template_contents.avionics?;
+    let countermissile = defensive_doctrine.is_some();
+
+    Some(MissileEquipmentSummary {
+      kind,
+      seekers,
+      warhead,
+      avionics,
+      maneuvers,
+      countermissile
+    })
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MissileKind {
+  Standard,
+  Torpedo,
+  Hybrid
+}
+
+impl MissileKind {
+  pub const fn from_missile_body_key(missile_body_key: MissileBodyKey) -> Self {
+    match missile_body_key {
+      MissileBodyKey::SGM1Balestra => MissileKind::Standard,
+      MissileBodyKey::SGM2Tempest => MissileKind::Standard,
+      MissileBodyKey::SGMH2Cyclone => MissileKind::Hybrid,
+      MissileBodyKey::SGMH3Atlatl => MissileKind::Hybrid,
+      MissileBodyKey::SGT3Pilum => MissileKind::Torpedo,
+      MissileBodyKey::CM4Container => MissileKind::Torpedo,
+      MissileBodyKey::CMS4Container => MissileKind::Torpedo
     }
   }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Equipment {
+pub enum WarheadKind {
+  /// Blast Fragmentation and Blast Fragmentation EL
+  AntiMissile,
+  /// HE Impact
+  AntiShip,
+  /// HE Kinetic Penetrator
+  AntiArmor
+}
+
+impl WarheadKind {
+  pub const fn from_warhead_key(warhead_key: WarheadKey) -> Self {
+    match warhead_key {
+      WarheadKey::HEImpact => WarheadKind::AntiShip,
+      WarheadKey::HEKineticPenetrator => WarheadKind::AntiArmor,
+      WarheadKey::BlastFragmentation => WarheadKind::AntiMissile,
+      WarheadKey::BlastFragmentationEL => WarheadKind::AntiMissile
+    }
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShipEquipment {
   Intelligence,
   Illuminator,
   DeceptionModule,
@@ -164,7 +270,7 @@ pub enum Equipment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
-pub struct EquipmentSummary {
+pub struct ShipEquipmentSummary {
   pub has_intelligence: bool,
   pub has_illuminator: bool,
   pub has_deception_module: bool,
@@ -176,23 +282,23 @@ pub struct EquipmentSummary {
   pub missile_cells: HashMap<MissileType, usize>
 }
 
-impl EquipmentSummary {
-  pub fn add_equipment(&mut self, equipment: Equipment) {
+impl ShipEquipmentSummary {
+  pub fn add_ship_equipment(&mut self, equipment: ShipEquipment) {
     match equipment {
-      Equipment::Intelligence => self.has_intelligence = true,
-      Equipment::Illuminator => self.has_illuminator = true,
-      Equipment::DeceptionModule => self.has_deception_module = true,
-      Equipment::MissileIdentification => self.has_missile_identification = true,
-      Equipment::FireControl { sig_type } => {
+      ShipEquipment::Intelligence => self.has_intelligence = true,
+      ShipEquipment::Illuminator => self.has_illuminator = true,
+      ShipEquipment::DeceptionModule => self.has_deception_module = true,
+      ShipEquipment::MissileIdentification => self.has_missile_identification = true,
+      ShipEquipment::FireControl { sig_type } => {
         self.fire_control.insert(sig_type);
       },
-      Equipment::Jamming { sig_type } => {
+      ShipEquipment::Jamming { sig_type } => {
         self.jamming.insert(sig_type);
       },
-      Equipment::Sensor { sig_type } => {
+      ShipEquipment::Sensor { sig_type } => {
         self.sensors.insert(sig_type);
       },
-      Equipment::Weapon { family } => {
+      ShipEquipment::Weapon { family } => {
         self.weapons.insert(family);
       }
     }
@@ -200,35 +306,35 @@ impl EquipmentSummary {
 
   pub fn add_component_key(&mut self, component_key: ComponentKey) {
     if let ComponentKey::E15MasqueradeDeceptionModule = component_key {
-      self.add_equipment(Equipment::DeceptionModule);
+      self.add_ship_equipment(ShipEquipment::DeceptionModule);
     } else if let ComponentKey::ES32ScryerMissileIDSystem = component_key {
-      self.add_equipment(Equipment::MissileIdentification);
+      self.add_ship_equipment(ShipEquipment::MissileIdentification);
     } else if let ComponentKey::P60GrazerPDT = component_key {
-      self.add_equipment(Equipment::Weapon {
+      self.add_ship_equipment(ShipEquipment::Weapon {
         family: WeaponFamily::PointDefense(PointDefenseType::Beam)
       });
     } else {
       match component_key.component().variant {
         Some(ComponentVariant::FireControl { fire_control }) => {
-          self.add_equipment(Equipment::FireControl { sig_type: fire_control.sig_type });
+          self.add_ship_equipment(ShipEquipment::FireControl { sig_type: fire_control.sig_type });
         },
         Some(ComponentVariant::Illuminator { .. }) => {
-          self.add_equipment(Equipment::Illuminator);
+          self.add_ship_equipment(ShipEquipment::Illuminator);
         },
         Some(ComponentVariant::Intelligence { work_on_remote_tracks: true, .. }) => {
-          self.add_equipment(Equipment::Intelligence);
+          self.add_ship_equipment(ShipEquipment::Intelligence);
         },
         Some(ComponentVariant::Jammer { sig_type, .. }) => {
-          self.add_equipment(Equipment::Jamming { sig_type });
+          self.add_ship_equipment(ShipEquipment::Jamming { sig_type });
         },
         Some(ComponentVariant::Sensor { sig_type, can_lock, .. }) => {
-          self.add_equipment(Equipment::Sensor { sig_type });
+          self.add_ship_equipment(ShipEquipment::Sensor { sig_type });
           if can_lock {
-            self.add_equipment(Equipment::FireControl { sig_type });
+            self.add_ship_equipment(ShipEquipment::FireControl { sig_type });
           };
         },
         Some(ComponentVariant::SensorPassive) => {
-          self.add_equipment(Equipment::Sensor { sig_type: SigType::Radar });
+          self.add_ship_equipment(ShipEquipment::Sensor { sig_type: SigType::Radar });
         },
         Some(ComponentVariant::WeaponBeam { role, .. }) => {
           if let Some(usage) = WeaponUsage::from_weapon_role(role) {
@@ -245,14 +351,14 @@ impl EquipmentSummary {
               WeaponUsage::Defensive => WeaponFamily::PointDefense(PointDefenseType::Beam)
             };
 
-            self.add_equipment(Equipment::Weapon { family });
+            self.add_ship_equipment(ShipEquipment::Weapon { family });
           };
         },
         Some(ComponentVariant::WeaponProjectile { munition_family: Some(munition_family), .. }) |
         Some(ComponentVariant::WeaponMissileLauncher { munition_family, .. }) |
         Some(ComponentVariant::WeaponMissileBank { munition_family, .. }) => {
           if let Some(family) = WeaponFamily::from_munition_family(munition_family) {
-            self.add_equipment(Equipment::Weapon { family });
+            self.add_ship_equipment(ShipEquipment::Weapon { family });
           };
         },
         Some(..) | None => ()
@@ -261,15 +367,15 @@ impl EquipmentSummary {
   }
 }
 
-impl Extend<Equipment> for EquipmentSummary {
-  fn extend<T: IntoIterator<Item = Equipment>>(&mut self, iter: T) {
+impl Extend<ShipEquipment> for ShipEquipmentSummary {
+  fn extend<T: IntoIterator<Item = ShipEquipment>>(&mut self, iter: T) {
     for equipment in iter {
-      self.add_equipment(equipment);
+      self.add_ship_equipment(equipment);
     };
   }
 }
 
-impl Extend<ComponentKey> for EquipmentSummary {
+impl Extend<ComponentKey> for ShipEquipmentSummary {
   fn extend<T: IntoIterator<Item = ComponentKey>>(&mut self, iter: T) {
     for component_key in iter {
       self.add_component_key(component_key);
@@ -277,15 +383,15 @@ impl Extend<ComponentKey> for EquipmentSummary {
   }
 }
 
-impl FromIterator<Equipment> for EquipmentSummary {
-  fn from_iter<T: IntoIterator<Item = Equipment>>(iter: T) -> Self {
+impl FromIterator<ShipEquipment> for ShipEquipmentSummary {
+  fn from_iter<T: IntoIterator<Item = ShipEquipment>>(iter: T) -> Self {
     let mut summary = Self::default();
     summary.extend(iter);
     summary
   }
 }
 
-impl FromIterator<ComponentKey> for EquipmentSummary {
+impl FromIterator<ComponentKey> for ShipEquipmentSummary {
   fn from_iter<T: IntoIterator<Item = ComponentKey>>(iter: T) -> Self {
     let mut summary = Self::default();
     summary.extend(iter);
@@ -380,7 +486,12 @@ impl MissileType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DistanceRealm {
-  Near = 1, Middle = 2, Far = 3
+  /// Between 0m and 7km.
+  Near = 1,
+  /// Between 7km and 12km.
+  Middle = 2,
+  /// Beyond 12km.
+  Far = 3
 }
 
 impl DistanceRealm {
