@@ -40,8 +40,17 @@ impl AuxiliaryKey {
     }
   }
 
-  pub const fn cost(self) -> usize {
-    todo!()
+  pub const fn cost(self) -> f32 {
+    match self {
+      Self::ColdGasBottle => 1.0,
+      Self::DecoyLauncher => 12.0,
+      Self::ClusterDecoyLauncher => 30.0,
+      Self::FastStartupModule => 3.0,
+      Self::HardenedSkin => 5.0,
+      Self::RadarAbsorbentCoating => 4.0,
+      Self::SelfScreeningJammer => 5.0,
+      Self::BoostedSelfScreeningJammer => 10.0
+    }
   }
 }
 
@@ -62,8 +71,11 @@ impl AvionicsKey {
     }
   }
 
-  pub const fn cost(self) -> usize {
-    todo!()
+  pub const fn cost(self) -> f32 {
+    match self {
+      Self::DirectGuidance => 0.0,
+      Self::CruiseGuidance => 2.0
+    }
   }
 }
 
@@ -91,8 +103,13 @@ impl WarheadKey {
     }
   }
 
-  pub const fn cost(self) -> usize {
-    todo!()
+  pub const fn base_cost(self) -> f32 {
+    match self {
+      Self::HEImpact => 0.25,
+      Self::HEKineticPenetrator => 2.0,
+      Self::BlastFragmentation => 0.25,
+      Self::BlastFragmentationEL => 3.5
+    }
   }
 }
 
