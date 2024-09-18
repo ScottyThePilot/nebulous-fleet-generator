@@ -26,6 +26,7 @@ macro_rules! key {
 pub mod utils;
 pub mod data;
 pub mod format;
+pub mod loadout;
 
 pub use crate::format::key::Key;
 pub use crate::utils::Size;

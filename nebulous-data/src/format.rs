@@ -24,9 +24,10 @@ pub use uuid::Uuid;
 #[doc(no_inline)]
 pub use xml::{read_nodes, write_nodes};
 
-use std::convert::Infallible;
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize as zsize;
 use std::ops::{Add, AddAssign, Index};
 use std::str::FromStr;
@@ -204,14 +205,17 @@ impl Ship {
         let load = hull_socket.component_data.as_ref()
           .and_then(ComponentData::get_load).unwrap_or(&[]);
         for &MagazineSaveData { ref munition_key, quantity, .. } in load {
-          if let Ok(munition_key) = munition_key.parse::<MunitionKey>() {
-            costs.ammunition += munition_key.munition().point_cost * quantity;
-          } else if let Some(munition_key) = munition_key.strip_prefix("$MODMIS$/") {
-            if let Some(missile_template) = missile_templates.iter().find(|missile_template| {
-              missile_template.associated_template_name.as_deref() == Some(munition_key)
-            }) {
-              costs.missiles += missile_template.calculate_cost() * quantity;
-            };
+          match munition_key {
+            MunitionOrMissileKey::MunitionKey(munition_key) => {
+              costs.ammunition += munition_key.munition().point_cost * quantity;
+            },
+            MunitionOrMissileKey::MissileKey(missile_key) => {
+              if let Some(missile_template) = missile_templates.iter().find(|missile_template| {
+                missile_template.associated_template_name.as_deref() == Some(missile_key)
+              }) {
+                costs.missiles += missile_template.calculate_cost() * quantity;
+              };
+            }
           };
         };
       };
@@ -485,7 +489,7 @@ impl SerializeElement for ComponentData {
 pub struct MagazineSaveData {
   pub magazine_key: Key,
   // This is here rather than MunitionKey since these can reference custom missiles, which have unique names.
-  pub munition_key: Box<str>,
+  pub munition_key: MunitionOrMissileKey,
   pub quantity: usize
 }
 
@@ -500,7 +504,7 @@ impl DeserializeElement for MagazineSaveData {
     let magazine_key = magazine_key.ok_or(xml::Error::missing_element("MagazineKey"))?
       .children.deserialize::<Key>()?;
     let munition_key = munition_key.ok_or(xml::Error::missing_element("MunitionKey"))?
-      .children.deserialize::<String>()?.into_boxed_str();
+      .children.deserialize::<MunitionOrMissileKey>()?;
     let quantity = quantity.ok_or(xml::Error::missing_element("Quantity"))?
       .children.deserialize::<usize>()?;
 
@@ -519,6 +523,87 @@ impl SerializeElement for MagazineSaveData {
     Ok(Element::new("MagSaveData", Nodes::from_iter([magazine_key, munition_key, quantity])))
   }
 }
+
+
+
+// Derive implementations of Eq and Ord should align with the Hash implementation
+// since it is assumed no MunitionKey starts with `$MODMIS$`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum MunitionOrMissileKey {
+  MunitionKey(MunitionKey),
+  MissileKey(Box<str>)
+}
+
+impl MunitionOrMissileKey {
+  pub const fn munition_key(&self) -> Option<MunitionKey> {
+    if let Self::MunitionKey(munition_key) = self { Some(*munition_key) } else { None }
+  }
+
+  pub const fn missile_key(&self) -> Option<&str> {
+    if let Self::MissileKey(missile_key) = self { Some(missile_key) } else { None }
+  }
+}
+
+impl Hash for MunitionOrMissileKey {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    match self {
+      Self::MunitionKey(munition_key) => {
+        munition_key.save_key().hash(state);
+      },
+      Self::MissileKey(missile_key) => {
+        state.write("$MODMIS$/".as_bytes());
+        state.write(missile_key.as_bytes());
+        state.write_u8(0xff);
+      }
+    };
+  }
+}
+
+impl fmt::Display for MunitionOrMissileKey {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::MunitionKey(munition_key) => {
+        f.write_str(munition_key.save_key())?;
+      },
+      Self::MissileKey(missile_key) => {
+        f.write_str("$MODMIS$/")?;
+        f.write_str(missile_key)?;
+      }
+    };
+
+    Ok(())
+  }
+}
+
+impl FromStr for MunitionOrMissileKey {
+  type Err = crate::data::InvalidKey;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    if let Some(missile_key) = s.strip_prefix("$MODMIS$/") {
+      Ok(Self::MissileKey(missile_key.into()))
+    } else {
+      s.parse::<MunitionKey>().map(Self::MunitionKey)
+    }
+  }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for MunitionOrMissileKey {
+  fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    String::deserialize(deserializer).and_then(|string| {
+      string.parse::<Self>().map_err(serde::de::Error::custom)
+    })
+  }
+}
+
+impl Serialize for MunitionOrMissileKey {
+  fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    self.to_string().serialize(serializer)
+  }
+}
+
+xml::impl_deserialize_nodes_parse!(MunitionOrMissileKey);
+xml::impl_serialize_nodes_display!(MunitionOrMissileKey);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]

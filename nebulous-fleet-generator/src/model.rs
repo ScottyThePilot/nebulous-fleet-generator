@@ -10,7 +10,7 @@ use nebulous_data::data::missiles::seekers::{SeekerKind, SeekerStrategy};
 use nebulous_data::data::missiles::bodies::MissileBodyKey;
 use nebulous_data::data::munitions::{MunitionFamily, MunitionKey, WeaponRole};
 use nebulous_data::data::MissileSize;
-use nebulous_data::format::{ComponentData, Color, MissileTemplate, MissileTemplateContents, MissileSocket, Ship};
+use nebulous_data::format::{ComponentData, Color, MunitionOrMissileKey, MissileTemplate, MissileTemplateContents, MissileSocket, Ship};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Extend;
@@ -94,7 +94,7 @@ impl ShipState {
       let magazine_contents = load.map(|load| {
         let mut magazine_contents = BTreeMap::new();
         for magazine_save_data in load.iter() {
-          if let Ok(munition_key) = magazine_save_data.munition_key.parse::<MunitionKey>() {
+          if let Some(munition_key) = magazine_save_data.munition_key.munition_key() {
             *magazine_contents.entry(munition_key).or_default() += magazine_save_data.quantity;
           };
         };
