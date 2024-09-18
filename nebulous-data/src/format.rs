@@ -9,7 +9,6 @@ use crate::data::missiles::bodies::MissileBodyKey;
 use crate::data::missiles::seekers::{SeekerMode, SeekerKey, SeekerStrategy};
 use crate::data::missiles::engines::EngineSettings;
 use crate::data::munitions::MunitionKey;
-use crate::utils::Size;
 use self::key::Key;
 
 use bytemuck::Contiguous;
