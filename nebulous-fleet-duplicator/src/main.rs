@@ -5,6 +5,7 @@ use rand::rngs::OsRng;
 use rand_xoshiro::Xoroshiro128StarStar;
 
 use std::fs::File;
+use std::ffi::OsString;
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 
@@ -17,12 +18,8 @@ fn main() {
     let file_stem = in_path.file_stem().expect("invalid path");
     let extension = in_path.extension().expect("invalid path");
 
-    let (mut file_name, mul) = match file_stem.to_str().and_then(strip_multiplier) {
-      Some((file_stem_stripped, mul)) => (file_stem_stripped.into(), mul),
-      None => (file_stem.to_owned(), 1)
-    };
-
-    file_name.push(format!(" ({}x)", mul * 2));
+    let file_stem_str = file_stem.to_str().expect("invalid_path");
+    let mut file_name = OsString::from(apply_double_suffix(file_stem_str));
     file_name.push(".");
     file_name.push(extension);
 
@@ -39,7 +36,10 @@ fn main() {
   let original_ship_count = root.element.ships.len();
 
   let mut rng = Random::from_rng(OsRng).expect("failed to seed prng");
-  root.element.double(&mut rng);
+  root.element.ships.extend(root.element.dupe_ships(&mut rng));
+  root.element.name = apply_double_suffix(&root.element.name);
+  root.element.total_points *= 2;
+
   println!("doubled fleet {original_name:?} of {original_ship_count} ships");
   if original_ship_count * 2 > 10 {
     println!("warning: the resulting fleet has more than 10 ships, it may not load correctly");
@@ -52,6 +52,11 @@ fn main() {
   println!("successfully wrote fleet to {}", out_path.display());
 
   pause();
+}
+
+fn apply_double_suffix(s: &str) -> String {
+  let (s, mul) = strip_multiplier(s).unwrap_or((s, 1));
+  format!("{s} ({}x)", mul * 2)
 }
 
 fn strip_multiplier(s: &str) -> Option<(&str, usize)> {

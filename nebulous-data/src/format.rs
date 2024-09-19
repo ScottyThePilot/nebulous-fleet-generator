@@ -108,12 +108,34 @@ pub struct Fleet {
 
 impl Fleet {
   #[cfg(feature = "rand")]
-  pub fn double<R: Rng + ?Sized>(&mut self, rng: &mut R) {
-    self.name.push_str(" (2x)");
-    self.total_points *= 2;
-    for i in 0..self.ships.len() {
-      self.ships.push(self.ships[i].dupe(rng));
+  pub fn dupe<R: Rng + ?Sized>(&self, rng: &mut R) -> Self {
+    Fleet {
+      name: self.name.clone(),
+      total_points: self.total_points,
+      faction_key: self.faction_key,
+      description: self.description.clone(),
+      ships: self.dupe_ships(rng),
+      missile_types: self.missile_types.clone()
+    }
+  }
+
+  #[cfg(feature = "rand")]
+  pub fn dupe_ships<R: Rng + ?Sized>(&self, rng: &mut R) -> Vec<Ship> {
+    let mut new_ship_keys = HashMap::with_capacity(self.ships.len());
+    let mut new_ships = Vec::with_capacity(self.ships.len());
+    for ship in self.ships.iter() {
+      let new_ship = ship.dupe(rng);
+      new_ship_keys.insert(ship.key, new_ship.key);
+      new_ships.push(new_ship);
     };
+
+    for new_ship in new_ships.iter_mut() {
+      if let Some(initial_formation) = new_ship.initial_formation.as_mut() {
+        initial_formation.guide_key = new_ship_keys[&initial_formation.guide_key];
+      };
+    };
+
+    new_ships
   }
 
   pub fn calculate_costs(&self, missile_templates: &[MissileTemplate]) -> Costs {
@@ -595,6 +617,7 @@ impl<'de> Deserialize<'de> for MunitionOrMissileKey {
   }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for MunitionOrMissileKey {
   fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
     self.to_string().serialize(serializer)

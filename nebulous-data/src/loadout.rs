@@ -123,6 +123,10 @@ pub struct MissileLoadout {
 }
 
 impl MissileLoadout {
+  pub fn from_missile_template(missile_template: &MissileTemplate) -> Result<Self, MissileLoadoutError> {
+    Self::new(missile_template.body_key, &missile_template.sockets)
+  }
+
   pub fn new(body_key: MissileBodyKey, missile_sockets: &[MissileSocket]) -> Result<Self, MissileLoadoutError> {
     let mut seekers = Vec::new();
     let mut avionics = None;
