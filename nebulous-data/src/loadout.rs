@@ -555,6 +555,34 @@ impl AvionicsConfigured {
       Self::CruiseGuidance { .. } => AvionicsKey::CruiseGuidance
     }
   }
+
+  pub const fn hot_launch(self) -> bool {
+    match self {
+      Self::DirectGuidance { hot_launch, .. } |
+      Self::CruiseGuidance { hot_launch, .. } => hot_launch
+    }
+  }
+
+  pub const fn self_destruct_on_lost(self) -> bool {
+    match self {
+      Self::DirectGuidance { self_destruct_on_lost, .. } |
+      Self::CruiseGuidance { self_destruct_on_lost, .. } => self_destruct_on_lost
+    }
+  }
+
+  pub const fn maneuvers(self) -> Maneuvers {
+    match self {
+      Self::DirectGuidance { maneuvers, .. } |
+      Self::CruiseGuidance { maneuvers, .. } => maneuvers
+    }
+  }
+
+  pub const fn defensive_doctrine(self) -> Option<DefensiveDoctrine> {
+    match self {
+      Self::DirectGuidance { defensive_doctrine, .. } |
+      Self::CruiseGuidance { defensive_doctrine, .. } => defensive_doctrine
+    }
+  }
 }
 
 

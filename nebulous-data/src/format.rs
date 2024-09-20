@@ -6,7 +6,7 @@ use crate::data::hulls::config::Variant;
 use crate::data::hulls::HullKey;
 use crate::data::missiles::{AuxiliaryKey, AvionicsKey, Maneuvers, WarheadKey};
 use crate::data::missiles::bodies::MissileBodyKey;
-use crate::data::missiles::seekers::{SeekerMode, SeekerKey, SeekerStrategy};
+use crate::data::missiles::seekers::{SeekerMode, SeekerKey};
 use crate::data::missiles::engines::EngineSettings;
 use crate::data::munitions::MunitionKey;
 use self::key::Key;

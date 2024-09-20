@@ -138,28 +138,30 @@ pub struct SocketState {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct MissileData {
+pub struct MissileState {
   pub designation: String,
   pub nickname: String,
   pub author: Option<String>,
   pub tags: HashSet<String>,
   pub base_color: Color,
   pub stripe_color: Color,
+  pub cost: usize,
   pub equipment_summary: MissileEquipmentSummary,
   #[serde(rename = "socket_data")]
   #[serde(with = "crate::utils::serde_base64_cbor")]
   pub loadout: MissileLoadout
 }
 
-impl MissileData {
+impl MissileState {
   pub fn from_missile_template(missile_template: &MissileTemplate) -> Result<Self, ModelError> {
-    Ok(MissileData {
+    Ok(MissileState {
       designation: missile_template.designation.clone(),
       nickname: missile_template.nickname.clone(),
       author: None,
       tags: HashSet::new(),
       base_color: missile_template.base_color,
       stripe_color: missile_template.stripe_color,
+      cost: missile_template.calculate_cost(),
       equipment_summary: MissileEquipmentSummary::from_missile_template_summary(
         missile_template.body_key, missile_template.get_summary()
       )?,

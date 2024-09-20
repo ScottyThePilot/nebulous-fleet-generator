@@ -1,10 +1,14 @@
-use crate::model::{DistanceRealm, ShipEquipmentSummary, PointDefenseType, ShipState, WeaponFamily};
+use crate::model::{DistanceRealm, ShipEquipmentSummary, MissileEquipmentSummary, PointDefenseType, ShipState, MissileState, WeaponFamily};
 use crate::utils::{keyword, keyword_parse, keyword_match, symbol, Parseable, Symbol, Token};
 
 use chumsky::prelude::*;
 use nebulous_data::data::components::SigType;
 use nebulous_data::data::hulls::HullKey;
+use nebulous_data::data::missiles::bodies::MissileBodyKey;
+use nebulous_data::data::missiles::seekers::{SeekerKind, SeekerMode};
+use nebulous_data::data::missiles::{AuxiliaryKey, AvionicsKey, Maneuvers, WarheadKey};
 use nebulous_data::data::MissileSize;
+use nebulous_data::loadout::AvionicsConfigured;
 use serde::de::{Deserialize, Deserializer};
 
 use std::ops::Range;
@@ -17,24 +21,24 @@ pub enum ShipPredicate {
   Any(Box<[Self]>),
   All(Box<[Self]>),
   Not(Box<Self>),
-  HullType(HullKey),
   Tag(String),
+  HullKey(HullKey),
   CostBudgetTotal(Range<usize>),
   CostBudgetSpare(Range<usize>),
   Equipment(ShipEquipmentPredicate)
 }
 
 impl ShipPredicate {
-  pub fn test(&self, ship_data: &ShipState) -> bool {
+  pub fn test(&self, ship_state: &ShipState) -> bool {
     match self {
-      Self::All(predicates) => predicates.iter().all(|predicate| predicate.test(ship_data)),
-      Self::Any(predicates) => predicates.iter().any(|predicate| predicate.test(ship_data)),
-      Self::Not(predicate) => !predicate.test(ship_data),
-      Self::HullType(hull_key) => ship_data.loadout.hull_type == *hull_key,
-      Self::Tag(tag) => ship_data.tags.contains(tag),
-      Self::CostBudgetTotal(cost_predicate) => cost_predicate.contains(&ship_data.cost_budget_total),
-      Self::CostBudgetSpare(cost_predicate) => cost_predicate.contains(&ship_data.cost_budget_spare),
-      Self::Equipment(equipment_predicate) => equipment_predicate.test(&ship_data.equipment_summary)
+      Self::All(predicates) => predicates.iter().all(|predicate| predicate.test(ship_state)),
+      Self::Any(predicates) => predicates.iter().any(|predicate| predicate.test(ship_state)),
+      Self::Not(predicate) => !predicate.test(ship_state),
+      Self::Tag(tag) => ship_state.tags.contains(tag),
+      Self::HullKey(hull_key) => ship_state.loadout.hull_type == *hull_key,
+      Self::CostBudgetTotal(cost_predicate) => cost_predicate.contains(&ship_state.cost_budget_total),
+      Self::CostBudgetSpare(cost_predicate) => cost_predicate.contains(&ship_state.cost_budget_spare),
+      Self::Equipment(equipment_predicate) => equipment_predicate.test(&ship_state.equipment_summary)
     }
   }
 }
@@ -42,18 +46,13 @@ impl ShipPredicate {
 impl Parseable<Token> for ShipPredicate {
   fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
     recursive(|predicate| {
-      let predicate_list = predicate.clone()
-        .separated_by(symbol(Symbol::Comma)).allow_trailing().at_least(1)
-        .delimited_by(symbol(Symbol::RoundBracketOpen), symbol(Symbol::RoundBracketClose))
-        .map(Vec::into_boxed_slice);
-      let predicate_single = predicate
-        .delimited_by(symbol(Symbol::RoundBracketOpen), symbol(Symbol::RoundBracketClose))
-        .map(Box::new);
+      let predicate_list = crate::utils::delimited_round_bracket_list(predicate.clone(), 1).map(Vec::into_boxed_slice);
+      let predicate_single = crate::utils::delimited_by_round_brackets(predicate).map(Box::new);
       let range = keyword_parse::<usize>()
         .then_ignore(symbol(Symbol::Ellipsis))
         .then(keyword_parse::<usize>())
         .map(|(start, end)| Range { start, end });
-      let hull_type = keyword_match(|keyword| match keyword {
+      let hull_key = keyword_match(|keyword| match keyword {
         "sprinter" => Some(HullKey::SprinterCorvette),
         "raines" => Some(HullKey::RainesFrigate),
         "keystone" => Some(HullKey::KeystoneDestroyer),
@@ -73,8 +72,8 @@ impl Parseable<Token> for ShipPredicate {
         keyword("any").ignore_then(predicate_list.clone()).map(Self::Any),
         keyword("all").ignore_then(predicate_list.clone()).map(Self::All),
         keyword("not").ignore_then(predicate_single).map(Self::Not),
-        keyword("hull_type").then(symbol(Symbol::Slash))
-          .ignore_then(hull_type).map(Self::HullType),
+        keyword("hull_key").then(symbol(Symbol::Slash))
+          .ignore_then(hull_key).map(Self::HullKey),
         keyword("cost_budget_total").then(symbol(Symbol::Slash))
           .ignore_then(range.clone()).map(Self::CostBudgetSpare),
         keyword("cost_budget_spare").then(symbol(Symbol::Slash))
@@ -209,6 +208,133 @@ impl Parseable<Token> for WeaponFamilyPredicate {
   }
 }
 
+#[derive(Debug, Clone)]
+pub enum MissilePredicate {
+  Any(Box<[Self]>),
+  All(Box<[Self]>),
+  Not(Box<Self>),
+  Tag(String),
+  MissileBodyKey(MissileBodyKey),
+  Cost(Range<usize>),
+  Equipment(MissileEquipmentPredicate)
+}
+
+impl MissilePredicate {
+  pub fn test(&self, missile_state: &MissileState) -> bool {
+    match self {
+      Self::All(predicates) => predicates.iter().all(|predicate| predicate.test(missile_state)),
+      Self::Any(predicates) => predicates.iter().any(|predicate| predicate.test(missile_state)),
+      Self::Not(predicate) => !predicate.test(missile_state),
+      Self::Tag(tag) => missile_state.tags.contains(tag),
+      Self::MissileBodyKey(body_key) => missile_state.loadout.body_key == *body_key,
+      Self::Cost(cost_predicate) => cost_predicate.contains(&missile_state.cost),
+      Self::Equipment(equipment_predicate) => equipment_predicate.test(&missile_state.equipment_summary)
+    }
+  }
+}
+
+#[derive(Debug, Clone)]
+pub enum MissileEquipmentPredicate {
+  Seeker(SeekerKind, SeekerMode),
+  Auxiliary(AuxiliaryKey),
+  Avionics(AvionicsKey, Option<AvionicsPredicate>),
+  Warhead(WarheadKey)
+}
+
+impl MissileEquipmentPredicate {
+  pub fn test(&self, equipment_summary: &MissileEquipmentSummary) -> bool {
+    match self {
+      Self::Seeker(seeker_kind, seeker_mode) => {
+        equipment_summary.seekers.iter().any(|(sk, sm)| {
+          sk == *seeker_kind && sm == *seeker_mode
+        })
+      },
+      Self::Auxiliary(auxiliary_key) => {
+        equipment_summary.auxiliary_components.contains(auxiliary_key)
+      },
+      Self::Avionics(avionics_key, avionics_predicate) => {
+        equipment_summary.avionics.into_avionics_key() == *avionics_key &&
+        avionics_predicate.as_ref().map_or(true, |avionics_predicate| {
+          avionics_predicate.test(equipment_summary.avionics)
+        })
+      },
+      Self::Warhead(warhead_key) => {
+        equipment_summary.warhead == Some(*warhead_key)
+      }
+    }
+  }
+}
+
+impl Parseable<Token> for MissileEquipmentPredicate {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    let predicate_seeker_mode = symbol(Symbol::Comma)
+      .ignore_then(SeekerMode::parser()).or_not()
+      .map(|seeker_mode| seeker_mode.unwrap_or(SeekerMode::Targeting));
+    let predicate_seeker = crate::utils::delimited_by_round_brackets(SeekerKind::parser().then(predicate_seeker_mode))
+      .map(|(seeker_kind, seeker_mode)| Self::Seeker(seeker_kind, seeker_mode));
+
+    let predicate_avionics = AvionicsKey::parser();
+
+
+
+    choice((
+      keyword("seeker").then(symbol(Symbol::Slash))
+        .ignore_then().map(),
+      keyword("auxiliary").then(symbol(Symbol::Slash))
+        .ignore_then().map(),
+      keyword("avionics").then(symbol(Symbol::Slash))
+        .ignore_then().map(),
+      keyword("warhead").then(symbol(Symbol::Slash))
+        .ignore_then().map(),
+    ))
+  }
+}
+
+#[derive(Debug, Clone)]
+pub enum AvionicsPredicate {
+  Any(Box<[Self]>),
+  All(Box<[Self]>),
+  Not(Box<Self>),
+  HotLaunch,
+  SelfDestructOnLost,
+  Maneuvers(Maneuvers),
+  DefensiveDoctrine
+}
+
+impl AvionicsPredicate {
+  pub fn test(&self, avionics_configured: AvionicsConfigured) -> bool {
+    match self {
+      Self::All(predicates) => predicates.iter().all(|predicate| predicate.test(avionics_configured)),
+      Self::Any(predicates) => predicates.iter().any(|predicate| predicate.test(avionics_configured)),
+      Self::Not(predicate) => !predicate.test(avionics_configured),
+      Self::HotLaunch => avionics_configured.hot_launch(),
+      Self::SelfDestructOnLost => avionics_configured.self_destruct_on_lost(),
+      Self::Maneuvers(maneuvers) => avionics_configured.maneuvers() == *maneuvers,
+      Self::DefensiveDoctrine => avionics_configured.defensive_doctrine().is_some()
+    }
+  }
+}
+
+impl Parseable<Token> for AvionicsPredicate {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    recursive(|predicate| {
+      let predicate_list = crate::utils::delimited_round_bracket_list(predicate.clone(), 1).map(Vec::into_boxed_slice);
+      let predicate_single = crate::utils::delimited_by_round_brackets(predicate).map(Box::new);
+
+      choice((
+        keyword("any").ignore_then(predicate_list.clone()).map(Self::Any),
+        keyword("all").ignore_then(predicate_list.clone()).map(Self::All),
+        keyword("not").ignore_then(predicate_single).map(Self::Not),
+        keyword("hot_launch").to(Self::HotLaunch),
+        keyword("self_destruct_on_lost").to(Self::SelfDestructOnLost),
+        keyword("maneuvers").then(symbol(Symbol::Slash))
+          .ignore_then(Maneuvers::parser()).map(Self::Maneuvers),
+        keyword("defensive_doctrine").to(Self::DefensiveDoctrine)
+      ))
+    })
+  }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MultiPredicate<T> {
   InRange(T, T),
@@ -251,5 +377,79 @@ impl Parseable<Token> for DistanceRealm {
 impl Parseable<Token> for PointDefenseType {
   fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
     keyword_parse::<PointDefenseType>()
+  }
+}
+
+impl Parseable<Token> for SeekerKind {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_match(|keyword| match keyword {
+      "command" => Some(Self::Command),
+      "active_radar" => Some(Self::ActiveRadar),
+      "semi_active_radar" => Some(Self::SemiActiveRadar),
+      "anti_radiation" => Some(Self::AntiRadiation),
+      "home_on_jam" => Some(Self::HomeOnJam),
+      "electro_optical" => Some(Self::ElectroOptical),
+      "wake_homing" => Some(Self::WakeHoming),
+      _ => None
+    })
+  }
+}
+
+impl Parseable<Token> for SeekerMode {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_match(|keyword| match keyword {
+      "targeting" | "tgt" => Some(Self::Targeting),
+      "validation" | "val" => Some(Self::Validation),
+      _ => None
+    })
+  }
+}
+
+impl Parseable<Token> for AuxiliaryKey {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_match(|keyword| match keyword {
+      "cold_gas_bottle" => Some(Self::ColdGasBottle),
+      "decoy_launcher" => Some(Self::DecoyLauncher),
+      "cluster_decoy_launcher" => Some(Self::ClusterDecoyLauncher),
+      "fast_startup_module" => Some(Self::FastStartupModule),
+      "hardened_skin" => Some(Self::HardenedSkin),
+      "radar_absorbent_coating" => Some(Self::RadarAbsorbentCoating),
+      "self_screening_jammer" => Some(Self::SelfScreeningJammer),
+      "boosted_self_screening_jammer" => Some(Self::BoostedSelfScreeningJammer),
+      _ => None
+    })
+  }
+}
+
+impl Parseable<Token> for AvionicsKey {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_match(|keyword| match keyword {
+      "direct_guidance" => Some(Self::DirectGuidance),
+      "cruise_guidance" => Some(Self::CruiseGuidance),
+      _ => None
+    })
+  }
+}
+
+impl Parseable<Token> for WarheadKey {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_match(|keyword| match keyword {
+      "he_impact" => Some(Self::HEImpact),
+      "he_kinetic_penetrator" => Some(Self::HEKineticPenetrator),
+      "blast_fragmentation" => Some(Self::BlastFragmentation),
+      "blast_fragmentation_el" => Some(Self::BlastFragmentationEL),
+      _ => None
+    })
+  }
+}
+
+impl Parseable<Token> for Maneuvers {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_match(|keyword| match keyword {
+      "none" => Some(Self::None),
+      "weave" => Some(Self::Weave),
+      "corkscrew" => Some(Self::Corkscrew),
+      _ => None
+    })
   }
 }

@@ -175,15 +175,39 @@ impl fmt::Display for Ident {
   }
 }
 
-pub fn symbol(symbol: Symbol) -> impl Parser<Token, (), Error = Simple<Token>> + Clone {
+pub type ParserSymbol = chumsky::combinator::To<chumsky::primitive::Just<Token, Token, Simple<Token>>, Token, ()>;
+pub type ParserDelimitedBySymbol<P> = chumsky::combinator::DelimitedBy<P, ParserSymbol, ParserSymbol, (), ()>;
+pub type ParserSeparatedBySymbol<P> = chumsky::combinator::SeparatedBy<P, ParserSymbol, ()>;
+
+pub fn delimited_round_bracket_list<T, P: Parser<Token, T, Error = Simple<Token>>>(p: P, at_least: usize) -> ParserDelimitedBySymbol<ParserSeparatedBySymbol<P>> {
+  delimited_by_round_brackets(separated_by_commas(p, at_least))
+}
+
+pub fn delimited_square_bracket_list<T, P: Parser<Token, T, Error = Simple<Token>>>(p: P, at_least: usize) -> ParserDelimitedBySymbol<ParserSeparatedBySymbol<P>> {
+  delimited_by_square_brackets(separated_by_commas(p, at_least))
+}
+
+pub fn delimited_by_round_brackets<T, P: Parser<Token, T, Error = Simple<Token>>>(p: P) -> ParserDelimitedBySymbol<P> {
+  p.delimited_by(symbol(Symbol::RoundBracketOpen), symbol(Symbol::RoundBracketClose))
+}
+
+pub fn delimited_by_square_brackets<T, P: Parser<Token, T, Error = Simple<Token>>>(p: P) -> ParserDelimitedBySymbol<P> {
+  p.delimited_by(symbol(Symbol::SquareBracketOpen), symbol(Symbol::SquareBracketClose))
+}
+
+pub fn separated_by_commas<T, P: Parser<Token, T, Error = Simple<Token>>>(p: P, at_least: usize) -> ParserSeparatedBySymbol<P> {
+  p.separated_by(symbol(Symbol::Comma)).allow_trailing().at_least(at_least)
+}
+
+pub fn symbol(symbol: Symbol) -> ParserSymbol {
   just(Token::Symbol(symbol)).ignored()
 }
 
-pub fn ident() -> impl Parser<Token, Box<str>, Error = Simple<Token>> + Clone {
+pub fn ident() -> chumsky::primitive::FilterMap<impl Fn(Span, Token) -> Result<Box<str>, Simple<Token>>, Simple<Token>> {
   chumsky::select! { Token::Ident(Ident { contents }) => contents }
 }
 
-pub fn keyword(keyword: &'static str) -> impl Parser<Token, (), Error = Simple<Token>> + Clone {
+pub fn keyword(keyword: &'static str) -> chumsky::primitive::FilterMap<impl Fn(Span, Token) -> Result<(), Simple<Token>>, Simple<Token>> {
   chumsky::select! { Token::Ident(Ident { contents }) if &*contents == keyword => () }
 }
 
