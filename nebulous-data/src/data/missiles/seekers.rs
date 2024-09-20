@@ -347,6 +347,16 @@ impl<S: Copy> SeekerStrategy<S> {
     SeekerStrategy { primary, secondaries: Box::new([]) }
   }
 
+  pub fn try_from_iter(iter: impl IntoIterator<Item = (S, SeekerMode)>) -> Option<Self> {
+    let mut iter = iter.into_iter();
+    if let Some((primary, SeekerMode::Targeting)) = iter.next() {
+      let secondaries = iter.collect::<Box<[(S, SeekerMode)]>>();
+      Some(Self::new(primary, secondaries))
+    } else {
+      None
+    }
+  }
+
   pub const fn len(&self) -> zsize {
     zsize!(self.secondaries.len().wrapping_add(1))
   }
