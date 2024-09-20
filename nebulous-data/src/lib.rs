@@ -7,6 +7,7 @@
 
 pub extern crate bytemuck;
 extern crate float_ord;
+extern crate indexmap;
 extern crate itertools;
 pub extern crate nebulous_xml as xml;
 #[cfg(feature = "rand")]

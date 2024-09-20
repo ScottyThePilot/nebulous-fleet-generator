@@ -5,18 +5,37 @@ use self::predicate::ShipPredicate;
 use nebulous_data::data::components::{ComponentKey, ComponentVariant, SigType};
 use nebulous_data::data::hulls::HullKey;
 use nebulous_data::data::hulls::config::Variant;
-use nebulous_data::data::missiles::{AvionicsKey, Maneuvers, WarheadKey};
+use nebulous_data::data::missiles::{AuxiliaryKey, AvionicsKey, Maneuvers, WarheadKey};
 use nebulous_data::data::missiles::seekers::{SeekerKind, SeekerStrategy};
 use nebulous_data::data::missiles::bodies::MissileBodyKey;
 use nebulous_data::data::munitions::{MunitionFamily, MunitionKey, WeaponRole};
 use nebulous_data::data::MissileSize;
-use nebulous_data::format::{ComponentData, Color, MunitionOrMissileKey, MissileTemplate, MissileTemplateContents, MissileSocket, Ship};
+use nebulous_data::format::{ComponentData, Color, MunitionOrMissileKey, MissileTemplate, MissileSocket, Ship};
+use nebulous_data::loadout::{
+  AvionicsConfigured, MissileLoadout, MissileLoadoutError, MissileTemplateAdditional, MissileTemplateSummary,
+  ShipAdditional, ShipLoadout, ShipLoadoutError
+};
+use nebulous_data::uuid::Builder as UuidBuilder;
+use rand::Rng;
+use rand::seq::SliceRandom;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Extend;
 use std::str::FromStr;
 
 
+
+#[derive(Debug, Error)]
+pub enum ModelError {
+  #[error("ship loadout error: {0}")]
+  ShipLoadout(#[from] ShipLoadoutError),
+  #[error("missile_loadout error: {0}")]
+  MissileLoadout(#[from] MissileLoadoutError),
+  #[error("missile has no seekers")]
+  MissileHasNoSeekers,
+  #[error("missile has no avionics")]
+  MissileHasNoAvionics
+}
 
 const fn default_one() -> usize { 1 }
 
@@ -49,24 +68,19 @@ pub struct FleetStrategyPredicates {
 pub struct ShipState {
   #[serde(with = "crate::utils::serde_one_or_many")]
   pub name: Vec<String>,
-  #[serde(skip_serializing_if = "Option::is_none", default)]
   pub author: Option<String>,
   pub tags: HashSet<String>,
-  pub hull_type: HullKey,
-  #[serde(skip_serializing_if = "Option::is_none", default)]
-  pub hull_config: Option<[Variant; 3]>,
   pub cost_budget_total: usize,
   pub cost_budget_spare: usize,
   pub equipment_summary: ShipEquipmentSummary,
   #[serde(rename = "socket_data")]
   #[serde(with = "crate::utils::serde_base64_cbor")]
-  pub sockets: Box<[Option<SocketState>]>
+  pub loadout: ShipLoadout
 }
 
 impl ShipState {
-  pub fn from_ship(ship: &Ship, missile_templates: &[MissileTemplate]) -> Self {
+  pub fn from_ship(ship: &Ship, missile_templates: &[MissileTemplate]) -> Result<Self, ShipLoadoutError> {
     let mut equipment_summary = ShipEquipmentSummary::default();
-    let mut component_map = HashMap::new();
 
     let hull = ship.hull_type.hull();
     for hull_socket in ship.socket_map.iter() {
@@ -82,53 +96,35 @@ impl ShipState {
           };
         };
       };
-
-      let (load, identity_option) = match hull_socket.component_data {
-        Some(ComponentData::BulkMagazineData { ref load }) => (Some(load), None),
-        Some(ComponentData::CellLauncherData { ref missile_load }) => (Some(missile_load), None),
-        Some(ComponentData::ResizableCellLauncherData { ref missile_load, .. }) => (Some(missile_load), None),
-        Some(ComponentData::DeceptionComponentData { identity_option }) => (None, Some(identity_option)),
-        None => (None, None)
-      };
-
-      let magazine_contents = load.map(|load| {
-        let mut magazine_contents = BTreeMap::new();
-        for magazine_save_data in load.iter() {
-          if let Some(munition_key) = magazine_save_data.munition_key.munition_key() {
-            *magazine_contents.entry(munition_key).or_default() += magazine_save_data.quantity;
-          };
-        };
-
-        magazine_contents
-      });
-
-      component_map.insert(hull_socket.key, SocketState {
-        component_key: hull_socket.component_name,
-        identity_option,
-        magazine_contents
-      });
     };
 
-    let sockets = hull.sockets.iter()
-      .map(|hull_socket| component_map.remove(&hull_socket.save_key))
-      .collect::<Box<[Option<SocketState>]>>();
-
-    let hull_config = ship.hull_config.as_ref().zip(hull.config_template)
-      .and_then(|(hull_config, config_template)| config_template.get_variants(hull_config));
-
     let costs = ship.calculate_costs(missile_templates);
+    let loadout = ShipLoadout::from_ship(ship)?;
 
-    ShipState {
+    Ok(ShipState {
       name: vec![ship.name.clone()],
       author: None,
       tags: HashSet::new(),
-      hull_type: ship.hull_type,
-      hull_config,
       cost_budget_total: costs.total(),
       cost_budget_spare: costs.missiles,
       equipment_summary,
-      sockets
-    }
+      loadout
+    })
+  }
+
+  pub fn to_ship<R: Rng + ?Sized>(&self, rng: &mut R) -> Ship {
+    self.loadout.to_ship(ShipAdditional {
+      key: UuidBuilder::from_random_bytes(rng.gen()).into_uuid(),
+      name: self.name.choose(rng).cloned()
+        .unwrap_or_else(|| "Ship".to_owned()),
+      // TODO: properly calculate cost
+      cost: 0,
+      callsign: None,
+      number: rng.gen_range(0..10000),
+      weapon_groups: Vec::new(),
+      initial_formation: None,
+      missile_types: Vec::new()
+    }, rng)
   }
 }
 
@@ -145,61 +141,72 @@ pub struct SocketState {
 pub struct MissileData {
   pub designation: String,
   pub nickname: String,
-  #[serde(skip_serializing_if = "Option::is_none", default)]
   pub author: Option<String>,
   pub tags: HashSet<String>,
-  pub body_key: MissileBodyKey,
   pub base_color: Color,
   pub stripe_color: Color,
-  #[serde(skip_serializing_if = "Option::is_none", default)]
-  pub equipment_summary: Option<MissileEquipmentSummary>,
+  pub equipment_summary: MissileEquipmentSummary,
   #[serde(rename = "socket_data")]
   #[serde(with = "crate::utils::serde_base64_cbor")]
-  pub sockets: Box<[MissileSocket]>
+  pub loadout: MissileLoadout
 }
 
 impl MissileData {
-  pub fn from_missile_template(missile_template: &MissileTemplate) -> Self {
-    MissileData {
+  pub fn from_missile_template(missile_template: &MissileTemplate) -> Result<Self, ModelError> {
+    Ok(MissileData {
       designation: missile_template.designation.clone(),
       nickname: missile_template.nickname.clone(),
       author: None,
       tags: HashSet::new(),
-      body_key: missile_template.body_key,
       base_color: missile_template.base_color,
       stripe_color: missile_template.stripe_color,
-      equipment_summary: MissileEquipmentSummary::from_missile_template_contents(&missile_template.contents()),
-      sockets: missile_template.sockets.clone().into_boxed_slice()
-    }
+      equipment_summary: MissileEquipmentSummary::from_missile_template_summary(
+        missile_template.body_key, missile_template.get_summary()
+      )?,
+      loadout: MissileLoadout::from_missile_template(missile_template)?
+    })
+  }
+
+  pub fn to_missile_template<R: Rng + ?Sized>(&self, rng: &mut R) -> MissileTemplate {
+    self.loadout.to_missile_template(MissileTemplateAdditional {
+      designation: self.designation.clone(),
+      nickname: self.nickname.clone(),
+      description: String::new(),
+      long_description: String::new(),
+      // TODO: properly calculate cost
+      cost: 0,
+      template_key: UuidBuilder::from_random_bytes(rng.gen()).into_uuid(),
+      base_color: self.base_color,
+      stripe_color: self.stripe_color
+    })
   }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct MissileEquipmentSummary {
-  pub kind: MissileKind,
+  pub body_key: MissileBodyKey,
   pub seekers: SeekerStrategy,
-  pub warhead: WarheadKind,
-  pub avionics: AvionicsKey,
-  pub maneuvers: Maneuvers,
-  pub countermissile: bool
+  pub auxiliary_components: Vec<AuxiliaryKey>,
+  pub avionics: AvionicsConfigured,
+  pub warhead: Option<WarheadKey>
 }
 
 impl MissileEquipmentSummary {
-  pub fn from_missile_template_contents(missile_template_contents: &MissileTemplateContents) -> Option<Self> {
-    let kind = MissileKind::from_missile_body_key(missile_template_contents.body_key);
-    let seekers = missile_template_contents.seekers.as_ref()?.to_basic();
-    let warhead = <&[_; 1]>::try_from(missile_template_contents.warheads.as_slice())
-      .ok().map(|&[(warhead_key, _)]| WarheadKind::from_warhead_key(warhead_key))?;
-    let (avionics, maneuvers, defensive_doctrine) = missile_template_contents.avionics?;
-    let countermissile = defensive_doctrine.is_some();
+  pub fn from_missile_template_summary(body_key: MissileBodyKey, missile_template_summary: MissileTemplateSummary) -> Result<Self, ModelError> {
+    let seekers = missile_template_summary.seekers.ok_or(ModelError::MissileHasNoSeekers)?.to_basic();
+    let auxiliary_components = missile_template_summary.auxiliary_components;
+    let avionics = missile_template_summary.avionics.ok_or(ModelError::MissileHasNoAvionics)?;
+    let warhead = match <[_; 1]>::try_from(missile_template_summary.warheads) {
+      Ok([(warhead_key, _size)]) => Some(warhead_key),
+      Err(..) => None
+    };
 
-    Some(MissileEquipmentSummary {
-      kind,
+    Ok(MissileEquipmentSummary {
+      body_key,
       seekers,
-      warhead,
+      auxiliary_components,
       avionics,
-      maneuvers,
-      countermissile
+      warhead
     })
   }
 }

@@ -30,7 +30,7 @@ impl ShipPredicate {
       Self::All(predicates) => predicates.iter().all(|predicate| predicate.test(ship_data)),
       Self::Any(predicates) => predicates.iter().any(|predicate| predicate.test(ship_data)),
       Self::Not(predicate) => !predicate.test(ship_data),
-      Self::HullType(hull_key) => ship_data.hull_type == *hull_key,
+      Self::HullType(hull_key) => ship_data.loadout.hull_type == *hull_key,
       Self::Tag(tag) => ship_data.tags.contains(tag),
       Self::CostBudgetTotal(cost_predicate) => cost_predicate.contains(&ship_data.cost_budget_total),
       Self::CostBudgetSpare(cost_predicate) => cost_predicate.contains(&ship_data.cost_budget_spare),

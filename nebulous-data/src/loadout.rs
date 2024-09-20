@@ -32,6 +32,9 @@ pub struct ShipAdditional {
   pub missile_types: Vec<MissileTemplate>
 }
 
+#[derive(Debug, Error, Clone, Copy)]
+pub enum ShipLoadoutError {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct ShipLoadout {
@@ -42,7 +45,7 @@ pub struct ShipLoadout {
 }
 
 impl ShipLoadout {
-  pub fn from_ship(ship: &Ship) -> Option<Self> {
+  pub fn from_ship(ship: &Ship) -> Result<Self, ShipLoadoutError> {
     let hull = ship.hull_type.hull();
     let hull_config = ship.hull_config.as_ref().zip(hull.config_template)
       .and_then(|(hull_config, config_template)| config_template.get_variants(hull_config));
@@ -54,7 +57,7 @@ impl ShipLoadout {
       .map(|hull_socket| component_map.remove(&hull_socket.save_key))
       .collect::<Box<[Option<ShipLoadoutSocket>]>>();
 
-    Some(ShipLoadout {
+    Ok(ShipLoadout {
       hull_type: ship.hull_type,
       hull_config,
       sockets
@@ -545,6 +548,13 @@ impl AvionicsConfigured {
       settings: Some(settings)
     }
   }
+
+  pub const fn into_avionics_key(self) -> AvionicsKey {
+    match self {
+      Self::DirectGuidance { .. } => AvionicsKey::DirectGuidance,
+      Self::CruiseGuidance { .. } => AvionicsKey::CruiseGuidance
+    }
+  }
 }
 
 
@@ -590,5 +600,62 @@ impl MissileLoadoutComponentKey {
       MissileComponentKey::BlastFragmentation => Self::Warhead(WarheadKey::BlastFragmentation),
       MissileComponentKey::BlastFragmentationEL => Self::Warhead(WarheadKey::BlastFragmentationEL)
     }
+  }
+}
+
+
+
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct MissileTemplateSummary {
+  pub seekers: Option<SeekerStrategy<SeekerKey>>,
+  pub auxiliary_components: Vec<AuxiliaryKey>,
+  pub avionics: Option<AvionicsConfigured>,
+  pub warheads: Vec<(WarheadKey, zsize)>,
+  pub engines: Vec<(EngineSettings, zsize)>
+}
+
+impl FromIterator<MissileLoadoutSocket> for MissileTemplateSummary {
+  fn from_iter<T: IntoIterator<Item = MissileLoadoutSocket>>(iter: T) -> Self {
+    let mut seekers = Vec::new();
+    let mut auxiliary_components = Vec::new();
+    let mut avionics = None;
+    let mut warheads = Vec::new();
+    let mut engines = Vec::new();
+
+    for MissileLoadoutSocket { component, size } in iter {
+      match component {
+        Some(MissileLoadoutComponent::Seeker(seeker)) => {
+          let (seeker_configured, mode, _) = seeker.into_parts();
+          seekers.push((seeker_configured.into_seeker_key(), mode));
+        },
+        Some(MissileLoadoutComponent::Avionics(avionics_configured)) => {
+          avionics = Some(avionics_configured);
+        },
+        Some(MissileLoadoutComponent::Auxiliary(auxiliary_key)) => {
+          auxiliary_components.push(auxiliary_key);
+        },
+        Some(MissileLoadoutComponent::Warhead(warhead_key)) => {
+          warheads.push((warhead_key, size));
+        },
+        Some(MissileLoadoutComponent::Engine(engine_settings)) => {
+          engines.push((engine_settings, size));
+        },
+        None => ()
+      };
+    };
+
+    MissileTemplateSummary {
+      seekers: SeekerStrategy::try_from_iter(seekers),
+      warheads, avionics, auxiliary_components, engines
+    }
+  }
+}
+
+impl FromIterator<MissileSocket> for MissileTemplateSummary {
+  fn from_iter<T: IntoIterator<Item = MissileSocket>>(iter: T) -> Self {
+    Self::from_iter(iter.into_iter().filter_map(|missile_socket| {
+      MissileLoadoutSocket::from_missile_socket(missile_socket).ok()
+    }))
   }
 }

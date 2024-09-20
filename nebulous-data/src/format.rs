@@ -840,17 +840,6 @@ impl SerializeElement for SecondaryStructureConfig {
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct MissileTemplateContents {
-  pub body_key: MissileBodyKey,
-  pub seekers: Option<SeekerStrategy<SeekerKey>>,
-  pub warheads: Vec<(WarheadKey, zsize)>,
-  pub avionics: Option<(AvionicsKey, Maneuvers, Option<DefensiveDoctrine>)>,
-  pub auxiliary_components: Vec<AuxiliaryKey>,
-  pub engine_settings: Vec<(EngineSettings, zsize)>
-}
-
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileTemplate {
   pub associated_template_name: Option<String>,
   pub designation: String,
@@ -871,70 +860,8 @@ impl MissileTemplate {
     self.cost
   }
 
-  pub fn contents(&self) -> MissileTemplateContents {
-    let mut seekers = Vec::new();
-    let mut warheads = Vec::new();
-    let mut avionics = None;
-    let mut auxiliary_components = Vec::new();
-    let mut engine_settings = Vec::new();
-    for &MissileSocket { installed_component, size } in self.sockets.iter() {
-      let Some(MissileComponent { component_key, settings }) = installed_component else { continue };
-      match (component_key, settings) {
-        (Some(component_key), Some(
-          MissileComponentSettings::ActiveSeekerSettings { mode, .. } |
-          MissileComponentSettings::PassiveSeekerSettings { mode, .. } |
-          MissileComponentSettings::CommandSeekerSettings { mode }
-        )) => {
-          if let Some(seeker_key) = component_key.to_seeker_key() {
-            seekers.push((seeker_key, mode));
-          };
-        },
-        (Some(MissileComponentKey::FixedAntiRadiationSeeker), Some(
-          MissileComponentSettings::PassiveARHSeekerSettings { mode, home_on_jam, .. }
-        )) => {
-          seekers.push((match home_on_jam {
-            true => SeekerKey::FixedHomeOnJam,
-            false => SeekerKey::FixedAntiRadiation
-          }, mode));
-        },
-        (Some(component_key), Some(
-          MissileComponentSettings::DirectGuidanceSettings { maneuvers, defensive_doctrine, .. } |
-          MissileComponentSettings::CruiseGuidanceSettings { maneuvers, defensive_doctrine, .. }
-        )) => {
-          if let Some(avionics_key) = component_key.to_avionics_key() {
-            avionics = Some((avionics_key, maneuvers, defensive_doctrine));
-          };
-        },
-        (Some(component_key), _) => {
-          if let Some(warhead_key) = component_key.to_warhead_key() {
-            warheads.push((warhead_key, size));
-          } else if let Some(auxiliary_key) = component_key.to_auxiliary_key() {
-            auxiliary_components.push(auxiliary_key);
-          };
-        },
-        (None, Some(MissileComponentSettings::MissileEngineSettings { balance_values })) => {
-          engine_settings.push((balance_values, size));
-        },
-        (None, _) => ()
-      };
-    };
-
-    let seekers = if seekers.is_empty() {
-      let primary = seekers.remove(0).0;
-      let secondaries = seekers.into_boxed_slice();
-      Some(SeekerStrategy::new(primary, secondaries))
-    } else {
-      None
-    };
-
-    MissileTemplateContents {
-      body_key: self.body_key,
-      seekers,
-      warheads,
-      avionics,
-      auxiliary_components,
-      engine_settings
-    }
+  pub fn get_summary(&self) -> crate::loadout::MissileTemplateSummary {
+    crate::loadout::MissileTemplateSummary::from_iter(self.sockets.iter().copied())
   }
 }
 
