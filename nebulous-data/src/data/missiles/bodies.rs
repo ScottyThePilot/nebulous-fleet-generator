@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use std::fmt;
 use std::str::FromStr;
+use std::num::NonZeroUsize as zsize;
 
 
 
@@ -22,42 +23,80 @@ pub struct MissileBody {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MissileBodyVariant {
   Conventional {
-    base_segments_length: usize,
-    base_slider_range: (usize, usize),
+    base_segments_length: zsize,
+    base_slider_range: (zsize, zsize),
     engine: &'static Engine,
     payload_mask: MissileComponentsMask,
-    slots: &'static [(MissileComponentsMask, usize)]
+    slots: &'static [(MissileComponentsMask, zsize)]
   },
   Hybrid {
-    cruise_segments_length: usize,
+    cruise_segments_length: zsize,
     cruise_engine: &'static Engine,
-    sprint_segments_length: usize,
-    sprint_slider_range: (usize, usize),
+    sprint_segments_length: zsize,
+    sprint_slider_range: (zsize, zsize),
     sprint_engine: &'static Engine,
     payload_mask: MissileComponentsMask,
-    slots: &'static [(MissileComponentsMask, usize)]
+    slots: &'static [(MissileComponentsMask, zsize)]
   }
 }
 
 impl MissileBodyVariant {
-  pub const fn len(self) -> usize {
+  pub const fn payload_mask(self) -> MissileComponentsMask {
+    match self {
+      Self::Conventional { payload_mask, .. } => payload_mask,
+      Self::Hybrid { payload_mask, .. } => payload_mask
+    }
+  }
+
+  pub const fn slots(self) -> &'static [(MissileComponentsMask, zsize)] {
+    match self {
+      Self::Conventional { slots, .. } => slots,
+      Self::Hybrid { slots, .. } => slots
+    }
+  }
+
+  pub const fn len(self) -> zsize {
     let (mut len, mut slots) = match self {
       MissileBodyVariant::Conventional { base_segments_length, slots, .. } => {
-        (base_segments_length, slots)
+        (base_segments_length.get(), slots)
       },
       MissileBodyVariant::Hybrid { cruise_segments_length, sprint_segments_length, slots, .. } => {
-        (cruise_segments_length + sprint_segments_length, slots)
+        (cruise_segments_length.get() + sprint_segments_length.get(), slots)
       }
     };
+
+    // One extra length contributed by the avionics slot
+    len += 1;
 
     loop {
       if let Some((&slot, rest)) = slots.split_first() {
         slots = rest;
-        len += slot.1;
+        len += slot.1.get();
       } else {
-        break len;
+        break zsize!(len);
       };
     }
+  }
+
+  pub fn missile_components_masks(self) -> Box<[MissileComponentsMask]> {
+    let len = self.len().get();
+    let mut missile_components_masks = Vec::with_capacity(len);
+    missile_components_masks.extend(self.slots().iter().map(|(mask, _)| mask));
+    missile_components_masks.push(MissileComponentsMask::ONLY_AVIONICS);
+    missile_components_masks.push(self.payload_mask());
+
+    match self {
+      MissileBodyVariant::Conventional { .. } => {
+        missile_components_masks.push(MissileComponentsMask::ONLY_ENGINES);
+      },
+      MissileBodyVariant::Hybrid { .. } => {
+        missile_components_masks.push(MissileComponentsMask::ONLY_ENGINES);
+        missile_components_masks.push(MissileComponentsMask::ONLY_ENGINES);
+      }
+    };
+
+    assert_eq!(missile_components_masks.len(), len);
+    missile_components_masks.into_boxed_slice()
   }
 }
 
@@ -67,20 +106,22 @@ pub struct MissileComponentsMask {
   pub allow_seekers: bool,
   pub allow_auxiliary: bool,
   pub allow_avionics: bool,
-  pub allow_warheads: bool
+  pub allow_warheads: bool,
+  pub allow_engines: bool
 }
 
 impl MissileComponentsMask {
-  pub const ALL: Self = Self { allow_seekers: true, allow_auxiliary: true, allow_avionics: true, allow_warheads: true };
-  pub const NONE: Self = Self { allow_seekers: false, allow_auxiliary: false, allow_avionics: false, allow_warheads: false };
-  pub const ALL_EXCEPT_AVIONICS: Self = Self { allow_avionics: false, ..Self::ALL };
+  pub const ALL: Self = Self { allow_seekers: true, allow_auxiliary: true, allow_avionics: true, allow_warheads: true, allow_engines: true };
+  pub const NONE: Self = Self { allow_seekers: false, allow_auxiliary: false, allow_avionics: false, allow_warheads: false, allow_engines: true };
 
   pub const ONLY_SEEKERS: Self = Self { allow_seekers: true, ..Self::NONE };
   pub const ONLY_AUXILIARY: Self = Self { allow_auxiliary: true, ..Self::NONE };
   pub const ONLY_WARHEADS: Self = Self { allow_warheads: true, ..Self::NONE };
-  pub const ONLY_SEEKERS_AUXILIARY: Self = Self { allow_warheads: false, ..Self::ALL_EXCEPT_AVIONICS };
-  pub const ONLY_WARHEADS_AUXILIARY: Self = Self { allow_seekers: false, ..Self::ALL_EXCEPT_AVIONICS };
+  pub const ONLY_SEEKERS_AUXILIARY: Self = Self { allow_seekers: true, allow_auxiliary: true, ..Self::NONE };
+  pub const ONLY_WARHEADS_AUXILIARY: Self = Self { allow_warheads: true, allow_auxiliary: true, ..Self::NONE };
+  pub const ONLY_SEEKERS_WARHEADS_AUXILIARY: Self = Self { allow_seekers: true, allow_warheads: true, allow_auxiliary: true, ..Self::NONE };
   pub const ONLY_AVIONICS: Self = Self { allow_avionics: true, ..Self::NONE };
+  pub const ONLY_ENGINES: Self = Self { allow_engines: true, ..Self::NONE };
 }
 
 #[repr(u8)]
@@ -142,13 +183,12 @@ pub mod list {
     save_key: "Stock/SGM-1 Body",
     faction: None,
     variant: MissileBodyVariant::Conventional {
-      base_segments_length: 7,
-      base_slider_range: (3, 6),
+      base_segments_length: zsize!(7),
+      base_slider_range: (zsize!(3), zsize!(6)),
       engine: &SGM1_ENGINE,
       payload_mask: MissileComponentsMask::ONLY_WARHEADS,
       slots: &[
-        (MissileComponentsMask::ONLY_AVIONICS, 1),
-        (MissileComponentsMask::ONLY_SEEKERS, 1)
+        (MissileComponentsMask::ONLY_SEEKERS, zsize!(1))
       ]
     }
   };
@@ -158,14 +198,13 @@ pub mod list {
     save_key: "Stock/SGM-2 Body",
     faction: None,
     variant: MissileBodyVariant::Conventional {
-      base_segments_length: 10,
-      base_slider_range: (4, 9),
+      base_segments_length: zsize!(10),
+      base_slider_range: (zsize!(4), zsize!(9)),
       engine: &SGM2_ENGINE,
       payload_mask: MissileComponentsMask::ONLY_WARHEADS_AUXILIARY,
       slots: &[
-        (MissileComponentsMask::ONLY_AVIONICS, 1),
-        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, 1),
-        (MissileComponentsMask::ONLY_SEEKERS, 1)
+        (MissileComponentsMask::ONLY_SEEKERS, zsize!(1)),
+        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, zsize!(1))
       ]
     }
   };
@@ -175,16 +214,15 @@ pub mod list {
     save_key: "Stock/SGM-H-2 Body",
     faction: Some(Faction::Alliance),
     variant: MissileBodyVariant::Hybrid {
-      cruise_segments_length: 1,
+      cruise_segments_length: zsize!(1),
       cruise_engine: &SGMH2_CRUISE_ENGINE,
-      sprint_segments_length: 8,
-      sprint_slider_range: (1, 7),
+      sprint_segments_length: zsize!(8),
+      sprint_slider_range: (zsize!(1), zsize!(7)),
       sprint_engine: &SGMH2_SPRINT_ENGINE,
       payload_mask: MissileComponentsMask::ONLY_WARHEADS,
       slots: &[
-        (MissileComponentsMask::ONLY_AVIONICS, 1),
-        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, 1),
-        (MissileComponentsMask::ONLY_SEEKERS, 1)
+        (MissileComponentsMask::ONLY_SEEKERS, zsize!(1)),
+        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, zsize!(1))
       ]
     }
   };
@@ -194,17 +232,16 @@ pub mod list {
     save_key: "Stock/SGM-H-3 Body",
     faction: Some(Faction::Alliance),
     variant: MissileBodyVariant::Hybrid {
-      cruise_segments_length: 1,
+      cruise_segments_length: zsize!(1),
       cruise_engine: &SGMH3_CRUISE_ENGINE,
-      sprint_segments_length: 10,
-      sprint_slider_range: (1, 9),
+      sprint_segments_length: zsize!(10),
+      sprint_slider_range: (zsize!(1), zsize!(9)),
       sprint_engine: &SGMH3_SPRINT_ENGINE,
       payload_mask: MissileComponentsMask::ONLY_WARHEADS,
       slots: &[
-        (MissileComponentsMask::ONLY_AVIONICS, 1),
-        (MissileComponentsMask::ONLY_AUXILIARY, 1),
-        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, 1),
-        (MissileComponentsMask::ONLY_SEEKERS, 1)
+        (MissileComponentsMask::ONLY_SEEKERS, zsize!(1)),
+        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, zsize!(1)),
+        (MissileComponentsMask::ONLY_AUXILIARY, zsize!(1)),
       ]
     }
   };
@@ -214,14 +251,13 @@ pub mod list {
     save_key: "Stock/SGT-3 Body",
     faction: None,
     variant: MissileBodyVariant::Conventional {
-      base_segments_length: 14,
-      base_slider_range: (5, 13),
+      base_segments_length: zsize!(14),
+      base_slider_range: (zsize!(5), zsize!(13)),
       engine: &SGT3_ENGINE,
       payload_mask: MissileComponentsMask::ONLY_WARHEADS_AUXILIARY,
       slots: &[
-        (MissileComponentsMask::ONLY_AVIONICS, 1),
-        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, 1),
-        (MissileComponentsMask::ONLY_SEEKERS, 1)
+        (MissileComponentsMask::ONLY_SEEKERS, zsize!(1)),
+        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, zsize!(1))
       ]
     }
   };
@@ -231,15 +267,14 @@ pub mod list {
     save_key: "Stock/CM-4 Body",
     faction: Some(Faction::Protectorate),
     variant: MissileBodyVariant::Conventional {
-      base_segments_length: 14,
-      base_slider_range: (5, 13),
+      base_segments_length: zsize!(14),
+      base_slider_range: (zsize!(5), zsize!(13)),
       engine: &CM4_ENGINE,
       payload_mask: MissileComponentsMask::ONLY_WARHEADS,
       slots: &[
-        (MissileComponentsMask::ONLY_AVIONICS, 1),
-        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, 1),
-        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, 1),
-        (MissileComponentsMask::ONLY_SEEKERS, 1)
+        (MissileComponentsMask::ONLY_SEEKERS, zsize!(1)),
+        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, zsize!(1)),
+        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, zsize!(1))
       ]
     }
   };
@@ -249,15 +284,14 @@ pub mod list {
     save_key: "Stock/CM-S-4 Body",
     faction: Some(Faction::Protectorate),
     variant: MissileBodyVariant::Conventional {
-      base_segments_length: 14,
-      base_slider_range: (5, 13),
+      base_segments_length: zsize!(14),
+      base_slider_range: (zsize!(5), zsize!(13)),
       engine: &CM4_ENGINE,
       payload_mask: MissileComponentsMask::ONLY_AUXILIARY,
       slots: &[
-        (MissileComponentsMask::ONLY_AVIONICS, 1),
-        (MissileComponentsMask::ALL_EXCEPT_AVIONICS, 1),
-        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, 1),
-        (MissileComponentsMask::ONLY_SEEKERS, 1)
+        (MissileComponentsMask::ONLY_SEEKERS, zsize!(1)),
+        (MissileComponentsMask::ONLY_SEEKERS_AUXILIARY, zsize!(1)),
+        (MissileComponentsMask::ONLY_SEEKERS_WARHEADS_AUXILIARY, zsize!(1))
       ]
     }
   };

@@ -4,12 +4,13 @@ use crate::data::hulls::config::Variant;
 use crate::data::missiles::engines::EngineSettings;
 use crate::data::missiles::{AuxiliaryKey, AvionicsKey, Maneuvers, WarheadKey};
 use crate::data::missiles::seekers::{SeekerKey, SeekerKind, SeekerMode, SeekerStrategy};
-use crate::data::missiles::bodies::MissileBodyKey;
+use crate::data::missiles::bodies::{MissileBodyKey, MissileComponentsMask};
 use crate::data::munitions::{MunitionFamily, MunitionKey, WeaponRole};
 use crate::data::MissileSize;
 use crate::format::*;
 use crate::format::key::Key;
 
+use itertools::Either;
 use indexmap::IndexMap;
 
 use std::collections::HashMap;
@@ -98,6 +99,18 @@ fn get_magazine_contents(load: &[MagazineSaveData]) -> IndexMap<MunitionOrMissil
   magazine_contents
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct MissileTemplateAdditional {
+  pub designation: String,
+  pub nickname: String,
+  pub description: String,
+  pub long_description: String,
+  pub cost: usize,
+  pub template_key: Uuid,
+  pub base_color: Color,
+  pub stripe_color: Color
+}
+
 #[derive(Debug, Error, Clone, Copy)]
 pub enum MissileLoadoutError {
   #[error("missing primary seeker")]
@@ -106,6 +119,8 @@ pub enum MissileLoadoutError {
   MissingAvionics,
   #[error("missing payload slot")]
   MissingPayloadSlot,
+  #[error("too many components")]
+  TooManyComponents,
   #[error("invalid engine(s)")]
   InvalidEngines,
   #[error("invalid missile component")]
@@ -169,6 +184,67 @@ impl MissileLoadout {
       engines
     })
   }
+
+  pub fn to_missile_template(&self, additional: MissileTemplateAdditional) -> Result<MissileTemplate, MissileLoadoutError> {
+    let variant = self.body_key.missile_body().variant;
+    let socket_masks = variant.missile_components_masks();
+    let mut sockets = vec![(None, zsize!(1)); variant.len().get()];
+
+    let mut sockets_view = SocketsView {
+      sockets: &mut sockets,
+      socket_masks: &socket_masks
+    };
+
+    for seeker_secondary in self.seekers.iter() {
+      sockets_view.put_front(seeker_secondary.into_missile_component(), zsize!(1));
+    };
+
+    //for (engine_settings, size) in self.engines.iter() {
+    //  let (socket, socket_size, mask) = sockets_view.split_last()
+    //    .ok_or(MissileLoadoutError::TooManyComponents)?;
+    //  *socket = Some(engine_settings.into_missile_component());
+    //  *socket_size = size;
+    //};
+
+    todo!()
+  }
+}
+
+struct SocketsView<'a> {
+  sockets: &'a mut [(Option<MissileComponent>, zsize)],
+  socket_masks: &'a [MissileComponentsMask]
+}
+
+impl<'a> SocketsView<'a> {
+  fn split_first<'s: 'a>(&'s mut self) -> Option<(&'a mut Option<MissileComponent>, &'a mut zsize, MissileComponentsMask)> {
+    let ((socket_missile_component, socket_size), new_sockets) = self.sockets.split_first_mut()?;
+    let (socket_mask, new_socket_masks) = self.socket_masks.split_first()?;
+    self.sockets = new_sockets;
+    self.socket_masks = new_socket_masks;
+    Some((socket_missile_component, socket_size, *socket_mask))
+  }
+
+  fn split_last<'s>(&'s mut self) -> Option<(&'a mut Option<MissileComponent>, &'a mut zsize, MissileComponentsMask)> {
+    let ((socket_missile_component, socket_size), new_sockets) = self.sockets.split_last_mut()?;
+    let (socket_mask, new_socket_masks) = self.socket_masks.split_last()?;
+    self.sockets = new_sockets;
+    self.socket_masks = new_socket_masks;
+    Some((socket_missile_component, socket_size, *socket_mask))
+  }
+
+  fn put_front(&mut self, missile_component: MissileComponent, size: zsize) -> Option<()> {
+    self.split_first().map(move |(socket, socket_size, _)| {
+      *socket = Some(missile_component);
+      *socket_size = size;
+    })
+  }
+
+  fn put_back(&mut self, missile_component: MissileComponent, size: zsize) -> Option<()> {
+    self.split_last().map(|(socket, socket_size, _)| {
+      *socket = Some(missile_component);
+      *socket_size = size;
+    })
+  }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -192,6 +268,11 @@ impl SeekerLoadout {
       None
     }
   }
+
+  pub fn iter(&self) -> impl Iterator<Item = SeekerSecondary> + '_ {
+    std::iter::once(SeekerSecondary::Targeting { seeker: self.primary })
+      .chain(self.secondaries.iter().copied())
+  }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -210,6 +291,55 @@ impl SeekerSecondary {
     match mode {
       SeekerMode::Targeting => SeekerSecondary::Targeting { seeker },
       SeekerMode::Validation => SeekerSecondary::Validating { seeker, reject_unvalidated }
+    }
+  }
+
+  pub const fn into_parts(self) -> (SeekerConfigured, SeekerMode, bool) {
+    match self {
+      Self::Targeting { seeker } => {
+        (seeker, SeekerMode::Targeting, false)
+      },
+      Self::Validating { seeker, reject_unvalidated } => {
+        (seeker, SeekerMode::Validation, reject_unvalidated)
+      }
+    }
+  }
+
+  pub const fn into_missile_component(self) -> MissileComponent {
+    let (seeker, mode, reject_unvalidated) = self.into_parts();
+    let (component_key, settings) = match seeker {
+      SeekerConfigured::Command => {
+        (MissileComponentKey::CommandReceiver, MissileComponentSettings::CommandSeekerSettings { mode })
+      },
+      SeekerConfigured::FixedActiveRadar { detect_pd_targets } => {
+        (MissileComponentKey::FixedActiveRadarSeeker, MissileComponentSettings::ActiveSeekerSettings { mode, reject_unvalidated, detect_pd_targets })
+      },
+      SeekerConfigured::SteerableActiveRadar { detect_pd_targets } => {
+        (MissileComponentKey::SteerableActiveRadarSeeker, MissileComponentSettings::ActiveSeekerSettings { mode, reject_unvalidated, detect_pd_targets })
+      },
+      SeekerConfigured::SteerableExtendedActiveRadar { detect_pd_targets } => {
+        (MissileComponentKey::SteerableExtendedActiveRadarSeeker, MissileComponentSettings::ActiveSeekerSettings { mode, reject_unvalidated, detect_pd_targets })
+      },
+      SeekerConfigured::FixedSemiActiveRadar { detect_pd_targets } => {
+        (MissileComponentKey::FixedSemiActiveRadarSeeker, MissileComponentSettings::ActiveSeekerSettings { mode, reject_unvalidated, detect_pd_targets })
+      },
+      SeekerConfigured::FixedAntiRadiation => {
+        (MissileComponentKey::FixedAntiRadiationSeeker, MissileComponentSettings::PassiveARHSeekerSettings { mode, reject_unvalidated, home_on_jam: false })
+      },
+      SeekerConfigured::FixedHomeOnJam => {
+        (MissileComponentKey::FixedAntiRadiationSeeker, MissileComponentSettings::PassiveARHSeekerSettings { mode, reject_unvalidated, home_on_jam: true })
+      },
+      SeekerConfigured::ElectroOptical { detect_pd_targets } => {
+        (MissileComponentKey::ElectroOpticalSeeker, MissileComponentSettings::PassiveSeekerSettings { mode, reject_unvalidated, detect_pd_targets })
+      },
+      SeekerConfigured::WakeHoming { detect_pd_targets } => {
+        (MissileComponentKey::WakeHomingSeeker, MissileComponentSettings::PassiveSeekerSettings { mode, reject_unvalidated, detect_pd_targets })
+      }
+    };
+
+    MissileComponent {
+      component_key: Some(component_key),
+      settings: Some(settings)
     }
   }
 }
@@ -256,6 +386,24 @@ pub enum AvionicsLoadout {
   }
 }
 
+impl AvionicsLoadout {
+  pub const fn into_missile_component(self) -> MissileComponent {
+    let (component_key, settings) = match self {
+      Self::DirectGuidance { hot_launch, self_destruct_on_lost, maneuvers, defensive_doctrine, approach_angle_control } => {
+        (MissileComponentKey::DirectGuidance, MissileComponentSettings::DirectGuidanceSettings { hot_launch, self_destruct_on_lost, maneuvers, defensive_doctrine, approach_angle_control })
+      },
+      Self::CruiseGuidance { hot_launch, self_destruct_on_lost, maneuvers, defensive_doctrine } => {
+        (MissileComponentKey::CruiseGuidance, MissileComponentSettings::CruiseGuidanceSettings { hot_launch, self_destruct_on_lost, maneuvers, defensive_doctrine })
+      }
+    };
+
+    MissileComponent {
+      component_key: Some(component_key),
+      settings: Some(settings)
+    }
+  }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EngineLoadout {
   Conventional {
@@ -280,6 +428,22 @@ impl EngineLoadout {
           Some(EngineLoadout::Conventional { engine_settings, engine_size })
         },
         Err(..) => None
+      }
+    }
+  }
+
+  pub fn iter(self) -> impl Iterator<Item = (EngineSettings, zsize)> {
+    match self {
+      Self::Conventional { engine_settings, engine_size } => {
+        Either::Left([
+          (engine_settings, engine_size)
+        ].into_iter())
+      },
+      Self::Hybrid { cruise_engine_settings, sprint_engine_settings, sprint_engine_length } => {
+        Either::Right([
+          (cruise_engine_settings, zsize!(1)),
+          (sprint_engine_settings, sprint_engine_length)
+        ].into_iter())
       }
     }
   }

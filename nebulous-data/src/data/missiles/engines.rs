@@ -84,6 +84,15 @@ impl EngineSettings {
       }
     }
   }
+
+  pub const fn into_missile_component(self) -> crate::format::MissileComponent {
+    crate::format::MissileComponent {
+      component_key: None,
+      settings: Some(crate::format::MissileComponentSettings::MissileEngineSettings {
+        balance_values: self
+      })
+    }
+  }
 }
 
 impl Default for EngineSettings {

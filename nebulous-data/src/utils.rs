@@ -161,6 +161,7 @@ pub(crate) fn probability_any(list: &[f32]) -> f32 {
 }
 
 macro_rules! zsize {
+  (0) => (compile_error!("value is zero"));
   ($expr:expr) => (match std::num::NonZeroUsize::new($expr) {
     Option::Some(__v) => __v,
     Option::None => panic!("value is zero")
