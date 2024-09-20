@@ -1471,6 +1471,41 @@ impl MissileComponentKey {
   }
 }
 
+impl From<AuxiliaryKey> for MissileComponentKey {
+  fn from(auxiliary_key: AuxiliaryKey) -> Self {
+    match auxiliary_key {
+      AuxiliaryKey::ColdGasBottle => Self::ColdGasBottle,
+      AuxiliaryKey::DecoyLauncher => Self::DecoyLauncher,
+      AuxiliaryKey::ClusterDecoyLauncher => Self::ClusterDecoyLauncher,
+      AuxiliaryKey::FastStartupModule => Self::FastStartupModule,
+      AuxiliaryKey::HardenedSkin => Self::HardenedSkin,
+      AuxiliaryKey::RadarAbsorbentCoating => Self::RadarAbsorbentCoating,
+      AuxiliaryKey::SelfScreeningJammer => Self::SelfScreeningJammer,
+      AuxiliaryKey::BoostedSelfScreeningJammer => Self::BoostedSelfScreeningJammer
+    }
+  }
+}
+
+impl From<AvionicsKey> for MissileComponentKey {
+  fn from(avionics_key: AvionicsKey) -> Self {
+    match avionics_key {
+      AvionicsKey::DirectGuidance => Self::DirectGuidance,
+      AvionicsKey::CruiseGuidance => Self::CruiseGuidance
+    }
+  }
+}
+
+impl From<WarheadKey> for MissileComponentKey {
+  fn from(warhead_key: WarheadKey) -> Self {
+    match warhead_key {
+      WarheadKey::HEImpact => Self::HEImpact,
+      WarheadKey::HEKineticPenetrator => Self::HEKineticPenetrator,
+      WarheadKey::BlastFragmentation => Self::BlastFragmentation,
+      WarheadKey::BlastFragmentationEL => Self::BlastFragmentationEL
+    }
+  }
+}
+
 impl FromStr for MissileComponentKey {
   type Err = crate::data::InvalidKey;
 

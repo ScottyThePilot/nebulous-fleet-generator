@@ -1,5 +1,5 @@
-use crate::data::components::ComponentKey;
-use crate::data::hulls::HullKey;
+use crate::data::components::{ComponentKey, ComponentVariant};
+use crate::data::hulls::{HullKey, HullSocket as HullSocketDefinition};
 use crate::data::hulls::config::Variant;
 use crate::data::missiles::engines::EngineSettings;
 use crate::data::missiles::{AuxiliaryKey, AvionicsKey, Maneuvers, WarheadKey};
@@ -9,15 +9,34 @@ use crate::format::*;
 use crate::format::key::Key;
 
 use indexmap::IndexMap;
+#[cfg(feature = "rand")]
+use rand::Rng;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
 use std::num::NonZeroUsize as zsize;
 
 
 
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+pub struct ShipAdditional {
+  pub key: Uuid,
+  pub name: String,
+  pub cost: usize,
+  pub callsign: Option<String>,
+  pub number: usize,
+  pub weapon_groups: Vec<WeaponGroup>,
+  pub initial_formation: Option<InitialFormation>,
+  pub missile_types: Vec<MissileTemplate>
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct ShipLoadout {
   pub hull_type: HullKey,
+  #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none", default))]
   pub hull_config: Option<[Variant; 3]>,
   pub sockets: Box<[Option<ShipLoadoutSocket>]>
 }
@@ -41,12 +60,44 @@ impl ShipLoadout {
       sockets
     })
   }
+
+  #[cfg(feature = "rand")]
+  pub fn to_ship<R: Rng + ?Sized>(&self, additional: ShipAdditional, rng: &mut R) -> Ship {
+    let hull = self.hull_type.hull();
+
+    let hull_config = hull.config_template.map(|config_template| {
+      let variants = self.hull_config.unwrap_or_else(|| rng.gen());
+      Box::new(rng.sample(config_template.with_variants(variants)))
+    });
+
+    let socket_map = self.sockets.iter().zip(hull.sockets.iter())
+      .filter_map(|(socket, hull_socket_definition)| {
+        socket.as_ref().map(|socket| socket.to_hull_socket(hull_socket_definition, rng))
+      })
+      .collect::<Vec<HullSocket>>();
+
+    Ship {
+      key: additional.key,
+      name: additional.name,
+      cost: additional.cost,
+      callsign: additional.callsign,
+      number: additional.number,
+      hull_type: self.hull_type,
+      hull_config,
+      socket_map,
+      weapon_groups: additional.weapon_groups,
+      initial_formation: additional.initial_formation,
+      missile_types: additional.missile_types,
+    }
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct ShipLoadoutSocket {
-  component_key: ComponentKey,
-  variant: Option<ShipLoadoutSocketVariant>
+  pub component_key: ComponentKey,
+  #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none", default))]
+  pub variant: Option<ShipLoadoutSocketVariant>
 }
 
 impl ShipLoadoutSocket {
@@ -56,9 +107,44 @@ impl ShipLoadoutSocket {
       .map(ShipLoadoutSocketVariant::from_component_data);
     ShipLoadoutSocket { component_key, variant }
   }
+
+  #[cfg(feature = "rand")]
+  pub fn to_hull_socket<R: Rng + ?Sized>(&self, hull_socket_definition: &'static HullSocketDefinition, rng: &mut R) -> HullSocket {
+    let component_data = if let ComponentKey::E15MasqueradeDeceptionModule = self.component_key {
+      let identity_option = self.variant.as_ref()
+        .and_then(ShipLoadoutSocketVariant::get_identity_option)
+        .unwrap_or(0);
+      Some(ComponentData::DeceptionComponentData { identity_option })
+    } else {
+      let component = self.component_key.component();
+      let magazine_contents = self.variant.as_ref()
+        .and_then(ShipLoadoutSocketVariant::get_magazine_contents);
+      if let Some(ComponentVariant::WeaponMissileBank { cells, .. }) = component.variant {
+        let missile_load = magazine_contents.map_or_else(Vec::new, |magazine_contents| get_load(magazine_contents, rng));
+        if let Some([x, y]) = cells.get_tiling_size(hull_socket_definition.size, component.size) {
+          let configured_size = crate::format::Vector2 { x, y };
+          Some(ComponentData::ResizableCellLauncherData { missile_load, configured_size })
+        } else {
+          Some(ComponentData::CellLauncherData { missile_load })
+        }
+      } else if let Some(ComponentVariant::Magazine { .. }) = component.variant {
+        let load = magazine_contents.map_or_else(Vec::new, |magazine_contents| get_load(magazine_contents, rng));
+        Some(ComponentData::BulkMagazineData { load })
+      } else {
+        None
+      }
+    };
+
+    HullSocket {
+      key: hull_socket_definition.save_key,
+      component_name: self.component_key,
+      component_data
+    }
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ShipLoadoutSocketVariant {
   DeceptionComponent {
     identity_option: usize
@@ -85,6 +171,22 @@ impl ShipLoadoutSocketVariant {
       }
     }
   }
+
+  pub fn get_identity_option(&self) -> Option<usize> {
+    if let Self::DeceptionComponent { identity_option } = self {
+      Some(*identity_option)
+    } else {
+      None
+    }
+  }
+
+  pub fn get_magazine_contents(&self) -> Option<&IndexMap<MunitionOrMissileKey, usize>> {
+    if let Self::MagazineComponent { magazine_contents } = self {
+      Some(magazine_contents)
+    } else {
+      None
+    }
+  }
 }
 
 fn get_magazine_contents(load: &[MagazineSaveData]) -> IndexMap<MunitionOrMissileKey, usize> {
@@ -96,7 +198,21 @@ fn get_magazine_contents(load: &[MagazineSaveData]) -> IndexMap<MunitionOrMissil
   magazine_contents
 }
 
+#[cfg(feature = "rand")]
+fn get_load<R: Rng + ?Sized>(magazine_contents: &IndexMap<MunitionOrMissileKey, usize>, rng: &mut R) -> Vec<MagazineSaveData> {
+  magazine_contents.iter()
+    .map(|(munition_key, &quantity)| {
+      MagazineSaveData {
+        magazine_key: rng.gen(),
+        munition_key: munition_key.clone(),
+        quantity
+      }
+    })
+    .collect()
+}
+
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileTemplateAdditional {
   pub designation: String,
   pub nickname: String,
@@ -115,6 +231,7 @@ pub enum MissileLoadoutError {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileLoadout {
   pub body_key: MissileBodyKey,
   pub sockets: Box<[MissileLoadoutSocket]>
@@ -126,6 +243,26 @@ impl MissileLoadout {
       .map(MissileLoadoutSocket::from_missile_socket)
       .collect::<Result<Box<[_]>, _>>()?;
     Ok(MissileLoadout { body_key: missile_template.body_key, sockets })
+  }
+
+  pub fn to_missile_template(&self, additional: MissileTemplateAdditional) -> MissileTemplate {
+    let name = format!("{} {}", additional.designation, additional.nickname);
+    let sockets = self.sockets.iter().copied()
+      .map(MissileLoadoutSocket::into_missile_socket)
+      .collect::<Vec<MissileSocket>>();
+    MissileTemplate {
+      associated_template_name: Some(name),
+      designation: additional.designation,
+      nickname: additional.nickname,
+      description: additional.description,
+      long_description: additional.long_description,
+      cost: additional.cost,
+      body_key: self.body_key,
+      template_key: additional.template_key,
+      base_color: additional.base_color,
+      stripe_color: additional.stripe_color,
+      sockets
+    }
   }
 
   pub fn iter_seekers(&self) -> impl Iterator<Item = (SeekerKey, SeekerMode)> + '_ {
@@ -155,7 +292,9 @@ impl MissileLoadout {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileLoadoutSocket {
+  #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none", default))]
   pub component: Option<MissileLoadoutComponent>,
   pub size: zsize
 }
@@ -165,9 +304,15 @@ impl MissileLoadoutSocket {
     missile_socket.installed_component.map(MissileLoadoutComponent::from_missile_component)
       .transpose().map(|component| MissileLoadoutSocket { component, size: missile_socket.size })
   }
+
+  pub fn into_missile_socket(self) -> MissileSocket {
+    let component = self.component.map(MissileLoadoutComponent::into_missile_component);
+    MissileSocket { size: self.size, installed_component: component }
+  }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum MissileLoadoutComponent {
   Seeker(SeekerWithMode),
   Avionics(AvionicsConfigured),
@@ -225,14 +370,28 @@ impl MissileLoadoutComponent {
       _ => return Err(MissileLoadoutError::InvalidMissileComponent)
     })
   }
+
+  pub fn into_missile_component(self) -> MissileComponent {
+    match self {
+      Self::Seeker(seeker) => seeker.into_missile_component(),
+      Self::Avionics(avionics) => avionics.into_missile_component(),
+      Self::Auxiliary(auxiliary_key) => MissileComponent { component_key: Some(auxiliary_key.into()), settings: None },
+      Self::Warhead(warhead_key) => MissileComponent { component_key: Some(warhead_key.into()), settings: None },
+      Self::Engine(engine_settings) => engine_settings.into_missile_component()
+    }
+  }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(tag = "seeker_mode"))]
 pub enum SeekerWithMode {
   Targeting {
+    #[cfg_attr(feature = "serde", serde(flatten))]
     seeker: SeekerConfigured
   },
   Validation {
+    #[cfg_attr(feature = "serde", serde(flatten))]
     seeker: SeekerConfigured,
     reject_unvalidated: bool
   }
@@ -310,6 +469,8 @@ impl SeekerWithMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", serde(tag = "seeker_key"))]
 pub enum SeekerConfigured {
   Command,
   FixedActiveRadar {
@@ -351,6 +512,7 @@ impl SeekerConfigured {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum AvionicsConfigured {
   DirectGuidance {
     hot_launch: bool,
