@@ -1,6 +1,6 @@
 pub mod predicate;
 
-use self::predicate::ShipPredicate;
+use self::predicate::{ShipPredicate, MissilePredicate};
 
 use nebulous_data::data::components::{ComponentKey, ComponentVariant, SigType};
 use nebulous_data::data::hulls::HullKey;
@@ -46,25 +46,37 @@ pub struct FleetStrategy {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct FleetStrategySelection {
+  /// Determines whether ships spawned from this selection can be placed in formations with other ships.
+  pub in_formation: bool,
+  /// Ships will never be added to formations with a guide of a lower hierarchy level.
+  pub self_hierarchy_level: isize,
+  /// Ships with a lower hierarchy level than this cannot be formed with.
+  pub child_hierarchy_level_min: isize,
+  /// The weight or importance of this selection if it has not been picked before.
   #[serde(default = "default_one")]
   pub weight_initial: usize,
+  /// The weight or importance of this selection if it has been picked at least once before.
   #[serde(default = "default_one")]
   pub weight_additional: usize,
+  /// Predicates that define conditions for ship selection.
   #[serde(default)]
   pub predicates: FleetStrategyPredicates
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct FleetStrategyPredicates {
+  /// Ships that match this predicate will be rejected
   #[serde(skip_serializing, default)]
   pub reject: Option<ShipPredicate>,
+  /// Ships that match this predicate will be selected for potential inclusion
   #[serde(skip_serializing, default)]
   pub require: Option<ShipPredicate>,
+  /// Ships that match this predicate will be prioritized potential inclusion
   #[serde(skip_serializing, default)]
   pub prioritize: Option<ShipPredicate>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ShipState {
   #[serde(with = "crate::utils::serde_one_or_many")]
   pub name: Vec<String>,
@@ -73,6 +85,8 @@ pub struct ShipState {
   pub cost_budget_total: usize,
   pub cost_budget_spare: usize,
   pub equipment_summary: ShipEquipmentSummary,
+  #[serde(default)]
+  pub missile_selections: Vec<ShipStateMissileSelection>,
   #[serde(rename = "socket_data")]
   #[serde(with = "crate::utils::serde_base64_cbor")]
   pub loadout: ShipLoadout
@@ -108,6 +122,7 @@ impl ShipState {
       cost_budget_total: costs.total(),
       cost_budget_spare: costs.missiles,
       equipment_summary,
+      missile_selections: Vec::new(),
       loadout
     })
   }
@@ -128,6 +143,29 @@ impl ShipState {
   }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ShipStateMissileSelection {
+  /// Whether a missile must be selected or not.
+  pub required: bool,
+  /// Only missiles of this type are allowed by this selection.
+  pub missile_type: MissileType,
+  /// Missile selection weight determines how many of that missile should be carried relative to other missiles.
+  pub weight: usize,
+  /// Predicates that define conditions for missile selection.
+  #[serde(default)]
+  pub predicates: ShipStateMissilePredicates
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ShipStateMissilePredicates {
+  #[serde(skip_serializing, default)]
+  pub reject: Option<MissilePredicate>,
+  #[serde(skip_serializing, default)]
+  pub require: Option<MissilePredicate>,
+  #[serde(skip_serializing, default)]
+  pub prioritize: Option<MissilePredicate>
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct SocketState {
   pub component_key: ComponentKey,
@@ -137,7 +175,7 @@ pub struct SocketState {
   pub magazine_contents: Option<BTreeMap<MunitionKey, usize>>
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MissileState {
   pub designation: String,
   pub nickname: String,

@@ -48,36 +48,17 @@ impl Parseable<Token> for ShipPredicate {
     recursive(|predicate| {
       let predicate_list = crate::utils::delimited_round_bracket_list(predicate.clone(), 1).map(Vec::into_boxed_slice);
       let predicate_single = crate::utils::delimited_by_round_brackets(predicate).map(Box::new);
-      let range = keyword_parse::<usize>()
-        .then_ignore(symbol(Symbol::Ellipsis))
-        .then(keyword_parse::<usize>())
-        .map(|(start, end)| Range { start, end });
-      let hull_key = keyword_match(|keyword| match keyword {
-        "sprinter" => Some(HullKey::SprinterCorvette),
-        "raines" => Some(HullKey::RainesFrigate),
-        "keystone" => Some(HullKey::KeystoneDestroyer),
-        "vauxhall" => Some(HullKey::VauxhallLightCruiser),
-        "axford" => Some(HullKey::AxfordHeavyCruiser),
-        "solomon" => Some(HullKey::SolomonBattleship),
-        "ferryman" | "shuttle" => Some(HullKey::FerrymanClipper),
-        "draugr" | "tugboat" => Some(HullKey::DraugrClipper),
-        "flathead" | "cargo_feeder" => Some(HullKey::FlatheadMonitor),
-        "ocello" => Some(HullKey::OcelloCommandCruiser),
-        "marauder" | "bulk_freighter" => Some(HullKey::MarauderLineShip),
-        "moorline" | "container_liner" => Some(HullKey::MoorlineLineShip),
-        _ => None
-      });
 
       choice((
         keyword("any").ignore_then(predicate_list.clone()).map(Self::Any),
         keyword("all").ignore_then(predicate_list.clone()).map(Self::All),
         keyword("not").ignore_then(predicate_single).map(Self::Not),
         keyword("hull_key").then(symbol(Symbol::Slash))
-          .ignore_then(hull_key).map(Self::HullKey),
+          .ignore_then(HullKey::parser()).map(Self::HullKey),
         keyword("cost_budget_total").then(symbol(Symbol::Slash))
-          .ignore_then(range.clone()).map(Self::CostBudgetSpare),
+          .ignore_then(<Range<usize>>::parser()).map(Self::CostBudgetSpare),
         keyword("cost_budget_spare").then(symbol(Symbol::Slash))
-          .ignore_then(range.clone()).map(Self::CostBudgetTotal),
+          .ignore_then(<Range<usize>>::parser()).map(Self::CostBudgetTotal),
         keyword("equipment").then(symbol(Symbol::Slash))
           .ignore_then(ShipEquipmentPredicate::parser()).map(Self::Equipment),
       ))
@@ -233,6 +214,43 @@ impl MissilePredicate {
   }
 }
 
+impl Parseable<Token> for MissilePredicate {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    recursive(|predicate| {
+      let predicate_list = crate::utils::delimited_round_bracket_list(predicate.clone(), 1).map(Vec::into_boxed_slice);
+      let predicate_single = crate::utils::delimited_by_round_brackets(predicate).map(Box::new);
+
+      choice((
+        keyword("any").ignore_then(predicate_list.clone()).map(Self::Any),
+        keyword("all").ignore_then(predicate_list.clone()).map(Self::All),
+        keyword("not").ignore_then(predicate_single).map(Self::Not),
+        keyword("missile_body_key").then(symbol(Symbol::Slash))
+          .ignore_then(MissileBodyKey::parser()).map(Self::MissileBodyKey),
+        keyword("cost").then(symbol(Symbol::Slash))
+          .ignore_then(<Range<usize>>::parser()).map(Self::Cost),
+        keyword("equipment").then(symbol(Symbol::Slash))
+          .ignore_then(MissileEquipmentPredicate::parser()).map(Self::Equipment),
+      ))
+    })
+  }
+}
+
+impl FromStr for MissilePredicate {
+  type Err = crate::utils::Errors;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    crate::utils::run::<MissilePredicate>(s)
+  }
+}
+
+impl<'de> Deserialize<'de> for MissilePredicate {
+  fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    String::deserialize(deserializer).and_then(|string| {
+      string.parse::<Self>().map_err(serde::de::Error::custom)
+    })
+  }
+}
+
 #[derive(Debug, Clone)]
 pub enum MissileEquipmentPredicate {
   Seeker(SeekerKind, SeekerMode),
@@ -267,25 +285,20 @@ impl MissileEquipmentPredicate {
 
 impl Parseable<Token> for MissileEquipmentPredicate {
   fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
-    let predicate_seeker_mode = symbol(Symbol::Comma)
-      .ignore_then(SeekerMode::parser()).or_not()
-      .map(|seeker_mode| seeker_mode.unwrap_or(SeekerMode::Targeting));
-    let predicate_seeker = crate::utils::delimited_by_round_brackets(SeekerKind::parser().then(predicate_seeker_mode))
-      .map(|(seeker_kind, seeker_mode)| Self::Seeker(seeker_kind, seeker_mode));
-
-    let predicate_avionics = AvionicsKey::parser();
-
-
+    let predicate_seeker = SeekerKind::parser().then(symbol(Symbol::Slash).ignore_then(SeekerMode::parser()).or_not())
+      .map(|(seeker_kind, seeker_mode)| Self::Seeker(seeker_kind, seeker_mode.unwrap_or(SeekerMode::Targeting)));
+    let predicate_avionics = AvionicsKey::parser().then(crate::utils::delimited_by_round_brackets(AvionicsPredicate::parser().or_not()))
+      .map(|(avionics_key, avionics_predicate)| Self::Avionics(avionics_key, avionics_predicate));
 
     choice((
       keyword("seeker").then(symbol(Symbol::Slash))
-        .ignore_then().map(),
+        .ignore_then(predicate_seeker),
       keyword("auxiliary").then(symbol(Symbol::Slash))
-        .ignore_then().map(),
+        .ignore_then(AuxiliaryKey::parser().map(Self::Auxiliary)),
       keyword("avionics").then(symbol(Symbol::Slash))
-        .ignore_then().map(),
+        .ignore_then(predicate_avionics),
       keyword("warhead").then(symbol(Symbol::Slash))
-        .ignore_then().map(),
+        .ignore_then(WarheadKey::parser().map(Self::Warhead)),
     ))
   }
 }
@@ -380,16 +393,51 @@ impl Parseable<Token> for PointDefenseType {
   }
 }
 
+impl Parseable<Token> for HullKey {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_match(|keyword| match keyword {
+      "sprinter" => Some(HullKey::SprinterCorvette),
+      "raines" => Some(HullKey::RainesFrigate),
+      "keystone" => Some(HullKey::KeystoneDestroyer),
+      "vauxhall" => Some(HullKey::VauxhallLightCruiser),
+      "axford" => Some(HullKey::AxfordHeavyCruiser),
+      "solomon" => Some(HullKey::SolomonBattleship),
+      "ferryman" | "shuttle" => Some(HullKey::FerrymanClipper),
+      "draugr" | "tugboat" => Some(HullKey::DraugrClipper),
+      "flathead" | "cargo_feeder" => Some(HullKey::FlatheadMonitor),
+      "ocello" => Some(HullKey::OcelloCommandCruiser),
+      "marauder" | "bulk_freighter" => Some(HullKey::MarauderLineShip),
+      "moorline" | "container_liner" => Some(HullKey::MoorlineLineShip),
+      _ => None
+    })
+  }
+}
+
+impl Parseable<Token> for MissileBodyKey {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_match(|keyword| match keyword {
+      "sgm1" | "sgm_1" | "sgm1_balestra" | "sgm_1_balestra" => Some(MissileBodyKey::SGM1Balestra),
+      "sgm2" | "sgm_2" | "sgm2_tempest" | "sgm_2_tempest" => Some(MissileBodyKey::SGM2Tempest),
+      "sgmh2" | "sgm_h_2" | "sgmh2_cyclone" | "sgm_h_2_cyclone" => Some(MissileBodyKey::SGMH2Cyclone),
+      "sgmh3" | "sgm_h_3" | "sgmh3_atlatl" | "sgm_h_3_atlatl" => Some(MissileBodyKey::SGMH3Atlatl),
+      "sgt3" | "sgt_3" | "sgt3_pilum" | "sgt_3_pilum" => Some(MissileBodyKey::SGT3Pilum),
+      "cm4" | "cm_4" | "cm4_container" | "cm_4_container" => Some(MissileBodyKey::CM4Container),
+      "cms4" | "cm_s_4" | "cms4_container" | "cm_s_4_container" => Some(MissileBodyKey::CMS4Container),
+      _ => None
+    })
+  }
+}
+
 impl Parseable<Token> for SeekerKind {
   fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
     keyword_match(|keyword| match keyword {
-      "command" => Some(Self::Command),
-      "active_radar" => Some(Self::ActiveRadar),
-      "semi_active_radar" => Some(Self::SemiActiveRadar),
-      "anti_radiation" => Some(Self::AntiRadiation),
-      "home_on_jam" => Some(Self::HomeOnJam),
-      "electro_optical" => Some(Self::ElectroOptical),
-      "wake_homing" => Some(Self::WakeHoming),
+      "cmd" | "command" => Some(Self::Command),
+      "act" | "active_radar" => Some(Self::ActiveRadar),
+      "sah" | "semi_active_radar" => Some(Self::SemiActiveRadar),
+      "arad" | "anti_radiation" => Some(Self::AntiRadiation),
+      "hoj" | "home_on_jam" => Some(Self::HomeOnJam),
+      "eo" | "electro_optical" => Some(Self::ElectroOptical),
+      "wake" | "wake_homing" => Some(Self::WakeHoming),
       _ => None
     })
   }
@@ -451,5 +499,12 @@ impl Parseable<Token> for Maneuvers {
       "corkscrew" => Some(Self::Corkscrew),
       _ => None
     })
+  }
+}
+
+impl<T: FromStr> Parseable<Token> for Range<T> where T::Err: ToString {
+  fn parser() -> impl Parser<Token, Self, Error = Simple<Token>> {
+    keyword_parse::<T>().then_ignore(symbol(Symbol::Ellipsis)).then(keyword_parse::<T>())
+      .map(|(start, end)| Range { start, end })
   }
 }
