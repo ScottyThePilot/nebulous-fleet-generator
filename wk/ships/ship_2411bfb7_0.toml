@@ -1,0 +1,18 @@
+name = "Eyes"
+tags = []
+cost_budget_total = 230
+cost_budget_spare = 0
+missile_selections = []
+socket_data = "omlodWxsX3R5cGVxc3ByaW50ZXJfY29ydmV0dGVnc29ja2V0c4z29vb2oW1jb21wb25lbnRfa2V5aGJlcnRoaW5noW1jb21wb25lbnRfa2V5cHJlaW5mb3JjZWRfY19pX2OhbWNvbXBvbmVudF9rZXl0cGxhbnRfY29udHJvbF9jZW50ZXKhbWNvbXBvbmVudF9rZXlwc21hbGxfZF9jX2xvY2tlcqFtY29tcG9uZW50X2tleXVmX3IzMzAwX21pY3JvX3JlYWN0b3KhbWNvbXBvbmVudF9rZXl1Zl9tMjMwX3doaXBsYXNoX2RyaXZloW1jb21wb25lbnRfa2V5dHJfbTUwX3BhcmFsbGF4X3JhZGFyoW1jb21wb25lbnRfa2V5dXNtYWxsX3JlYWN0b3JfYm9vc3Rlcg=="
+
+[equipment_summary]
+has_intelligence = false
+has_illuminator = false
+has_deception_module = false
+has_missile_identification = false
+fire_control = ["radar"]
+jamming = []
+sensors = ["radar"]
+weapons = []
+
+[equipment_summary.missile_cells]

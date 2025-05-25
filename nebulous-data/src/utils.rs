@@ -1,3 +1,6 @@
+#[cfg(feature = "steam-utils")]
+pub(crate) mod steam;
+
 use bytemuck::Contiguous;
 use itertools::Itertools;
 use uuid::Uuid;
@@ -171,7 +174,7 @@ macro_rules! zsize {
 macro_rules! size_op {
   ($vis:vis fn $name:ident [$t:tt]) => (
     #[inline] $vis const fn $name(self, rhs: Self) -> Self {
-      Size { x: self.x $t rhs.x, y: self.x $t rhs.y, z: self.x $t rhs.z }
+      Size { x: self.x $t rhs.x, y: self.y $t rhs.y, z: self.z $t rhs.z }
     }
   );
 }

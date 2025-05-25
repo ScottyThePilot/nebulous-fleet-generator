@@ -12,16 +12,23 @@ use std::io::{BufReader, Cursor};
 fn main() {
   let mut args = std::env::args_os().skip(1);
   let in_path = args.next().expect("no input path provided");
-  let out_path = args.next().expect("no output path provided");
+  let out_path = args.next();
 
   let reader = BufReader::new(File::open(in_path).expect("failed to open file"));
   let nodes = read_nodes(reader).expect("failed to read file");
   let fleet = <Root<Fleet>>::deserialize_nodes(nodes).expect("failed to deserialize nodes");
   let nodes = fleet.clone().serialize_nodes().expect("failed to serialize nodes");
 
-  let mut buffer = Cursor::new(Vec::new());
-  write_nodes(&mut buffer, &nodes, Some(Indent::default()), Some(Version::default())).expect("failed to write nodes");
-  std::fs::write(out_path, buffer.get_ref()).expect("failed to save file");
+  if let Some(out_path) = out_path {
+    let mut buffer = Cursor::new(Vec::new());
+    write_nodes(&mut buffer, &nodes, Some(Indent::default()), Some(Version::default())).expect("failed to write nodes");
+    std::fs::write(out_path, buffer.get_ref()).expect("failed to save file");
+  };
 
   println!("{:#?}", fleet.element);
+
+  for ship in fleet.element.ships {
+    let costs = ship.calculate_costs(&fleet.element.missile_types);
+    println!("cost of ship {:?}: {} (included), {} {:?} (calculated)", ship.name, ship.cost, costs.total(), costs);
+  };
 }

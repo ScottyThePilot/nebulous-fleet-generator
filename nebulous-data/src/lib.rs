@@ -31,6 +31,8 @@ pub mod loadout;
 
 pub use crate::format::key::Key;
 pub use crate::utils::Size;
+#[cfg(feature = "steam-utils")]
+pub use crate::utils::steam::*;
 
 pub mod prelude {
   #[doc(no_inline)]

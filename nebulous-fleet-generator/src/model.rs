@@ -2,24 +2,22 @@ pub mod predicate;
 
 use self::predicate::{ShipPredicate, MissilePredicate};
 
+use indexmap::{IndexMap, IndexSet};
 use nebulous_data::data::components::{ComponentKey, ComponentVariant, SigType};
-use nebulous_data::data::hulls::HullKey;
-use nebulous_data::data::hulls::config::Variant;
-use nebulous_data::data::missiles::{AuxiliaryKey, AvionicsKey, Maneuvers, WarheadKey};
-use nebulous_data::data::missiles::seekers::{SeekerKind, SeekerStrategy};
+use nebulous_data::data::missiles::{AuxiliaryKey, WarheadKey};
+use nebulous_data::data::missiles::seekers::SeekerStrategy;
 use nebulous_data::data::missiles::bodies::MissileBodyKey;
-use nebulous_data::data::munitions::{MunitionFamily, MunitionKey, WeaponRole};
+use nebulous_data::data::munitions::{MunitionFamily, WeaponRole};
 use nebulous_data::data::MissileSize;
-use nebulous_data::format::{ComponentData, Color, MunitionOrMissileKey, MissileTemplate, MissileSocket, Ship};
+use nebulous_data::format::{Color, MunitionOrMissileKey, MissileTemplate, Ship};
 use nebulous_data::loadout::{
   AvionicsConfigured, MissileLoadout, MissileLoadoutError, MissileTemplateAdditional, MissileTemplateSummary,
-  ShipAdditional, ShipLoadout, ShipLoadoutError
+  ShipAdditional, ShipLoadout, ShipLoadoutSocket, ShipLoadoutSocketVariant, ShipLoadoutError
 };
 use nebulous_data::uuid::Builder as UuidBuilder;
 use rand::Rng;
 use rand::seq::SliceRandom;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Extend;
 use std::str::FromStr;
 
@@ -37,21 +35,38 @@ pub enum ModelError {
   MissileHasNoAvionics
 }
 
-const fn default_one() -> usize { 1 }
+const fn default_one() -> usize {
+  1
+}
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FleetStrategy {
+  #[serde(default = "default_one")]
+  pub weight: usize,
   pub selections: Vec<FleetStrategySelection>
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+impl Default for FleetStrategy {
+  fn default() -> Self {
+    FleetStrategy {
+      weight: 1,
+      selections: Vec::new()
+    }
+  }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FleetStrategySelection {
   /// Determines whether ships spawned from this selection can be placed in formations with other ships.
   pub in_formation: bool,
   /// Ships will never be added to formations with a guide of a lower hierarchy level.
-  pub self_hierarchy_level: isize,
-  /// Ships with a lower hierarchy level than this cannot be formed with.
-  pub child_hierarchy_level_min: isize,
+  pub formation_hierarchy_level: isize,
+  /// The sum of all formed ships' hierarchy levels may not exceed this value.
+  #[serde(default)]
+  pub formation_hierarchy_limit: Option<isize>,
+  /// No more than this many ships may be formed with this ship as their guide.
+  #[serde(default)]
+  pub formation_ship_limit: Option<usize>,
   /// The weight or importance of this selection if it has not been picked before.
   #[serde(default = "default_one")]
   pub weight_initial: usize,
@@ -61,6 +76,20 @@ pub struct FleetStrategySelection {
   /// Predicates that define conditions for ship selection.
   #[serde(default)]
   pub predicates: FleetStrategyPredicates
+}
+
+impl Default for FleetStrategySelection {
+  fn default() -> Self {
+    FleetStrategySelection {
+      in_formation: true,
+      formation_hierarchy_level: 0,
+      formation_hierarchy_limit: None,
+      formation_ship_limit: None,
+      weight_initial: 1,
+      weight_additional: 1,
+      predicates: FleetStrategyPredicates::default()
+    }
+  }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -81,7 +110,7 @@ pub struct ShipState {
   #[serde(with = "crate::utils::serde_one_or_many")]
   pub name: Vec<String>,
   pub author: Option<String>,
-  pub tags: HashSet<String>,
+  pub tags: IndexSet<String>,
   pub cost_budget_total: usize,
   pub cost_budget_spare: usize,
   pub equipment_summary: ShipEquipmentSummary,
@@ -113,12 +142,19 @@ impl ShipState {
     };
 
     let costs = ship.calculate_costs(missile_templates);
-    let loadout = ShipLoadout::from_ship(ship)?;
+    println!("ship: {}, {:?}", ship.name, costs);
+    let mut loadout = ShipLoadout::from_ship(ship)?;
+    for socket in loadout.sockets.iter_mut() {
+      // remove all missiles from ship template
+      if let Some(ShipLoadoutSocket { variant: Some(ShipLoadoutSocketVariant::MagazineComponent { magazine_contents }), .. }) = socket {
+        magazine_contents.retain(|munition_key, _| matches!(munition_key, MunitionOrMissileKey::MunitionKey(..)));
+      };
+    };
 
     Ok(ShipState {
       name: vec![ship.name.clone()],
       author: None,
-      tags: HashSet::new(),
+      tags: IndexSet::new(),
       cost_budget_total: costs.total(),
       cost_budget_spare: costs.missiles,
       equipment_summary,
@@ -151,9 +187,17 @@ pub struct ShipStateMissileSelection {
   pub missile_type: MissileType,
   /// Missile selection weight determines how many of that missile should be carried relative to other missiles.
   pub weight: usize,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub force_launch_mode: Option<ShipStateMissileLaunchMode>,
   /// Predicates that define conditions for missile selection.
   #[serde(default)]
   pub predicates: ShipStateMissilePredicates
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
+pub enum ShipStateMissileLaunchMode {
+  #[serde(rename = "hot", alias = "hot_launch")] Hot,
+  #[serde(rename = "cold", alias = "cold_launch")] Cold
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -166,21 +210,12 @@ pub struct ShipStateMissilePredicates {
   pub prioritize: Option<MissilePredicate>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct SocketState {
-  pub component_key: ComponentKey,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub identity_option: Option<usize>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub magazine_contents: Option<BTreeMap<MunitionKey, usize>>
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MissileState {
   pub designation: String,
   pub nickname: String,
   pub author: Option<String>,
-  pub tags: HashSet<String>,
+  pub tags: IndexSet<String>,
   pub base_color: Color,
   pub stripe_color: Color,
   pub cost: usize,
@@ -196,7 +231,7 @@ impl MissileState {
       designation: missile_template.designation.clone(),
       nickname: missile_template.nickname.clone(),
       author: None,
-      tags: HashSet::new(),
+      tags: IndexSet::new(),
       base_color: missile_template.base_color,
       stripe_color: missile_template.stripe_color,
       cost: missile_template.calculate_cost(),
@@ -322,11 +357,11 @@ pub struct ShipEquipmentSummary {
   pub has_illuminator: bool,
   pub has_deception_module: bool,
   pub has_missile_identification: bool,
-  pub fire_control: HashSet<SigType>,
-  pub jamming: HashSet<SigType>,
-  pub sensors: HashSet<SigType>,
-  pub weapons: HashSet<WeaponFamily>,
-  pub missile_cells: HashMap<MissileType, usize>
+  pub fire_control: IndexSet<SigType>,
+  pub jamming: IndexSet<SigType>,
+  pub sensors: IndexSet<SigType>,
+  pub weapons: IndexSet<WeaponFamily>,
+  pub missile_cells: IndexMap<MissileType, usize>
 }
 
 impl ShipEquipmentSummary {
@@ -506,10 +541,13 @@ impl WeaponFamily {
   }
 }
 
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MissileType {
-  StandardMissile(MissileSize),
+  StandardMissileSize1,
+  StandardMissileSize2,
+  StandardMissileSize3,
   ContainerMissile,
   LoiteringMine,
   UnguidedRocket
@@ -518,9 +556,9 @@ pub enum MissileType {
 impl MissileType {
   pub fn from_munition_family(munition_family: MunitionFamily) -> Option<Self> {
     match munition_family {
-      MunitionFamily::StandardMissileSize1 => Some(MissileType::StandardMissile(MissileSize::Size1)),
-      MunitionFamily::StandardMissileSize2 => Some(MissileType::StandardMissile(MissileSize::Size2)),
-      MunitionFamily::StandardMissileSize3 => Some(MissileType::StandardMissile(MissileSize::Size3)),
+      MunitionFamily::StandardMissileSize1 => Some(MissileType::StandardMissileSize1),
+      MunitionFamily::StandardMissileSize2 => Some(MissileType::StandardMissileSize2),
+      MunitionFamily::StandardMissileSize3 => Some(MissileType::StandardMissileSize3),
       MunitionFamily::ContainerMissile => Some(MissileType::ContainerMissile),
       MunitionFamily::LoiteringMine => Some(MissileType::LoiteringMine),
       MunitionFamily::UnguidedRocket => Some(MissileType::UnguidedRocket),

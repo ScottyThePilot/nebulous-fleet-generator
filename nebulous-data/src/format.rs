@@ -214,13 +214,12 @@ impl Ship {
       if let Some(hull_socket_definition) = hull.get_socket(hull_socket.key) {
         let component = hull_socket.component_name.component();
 
-        if let Some(cost) = component.cost(hull_socket_definition.size) {
-          if let Some(compounding_cost) = component.compounding {
-            component_compounding_groups.entry(compounding_cost)
-              .or_insert_with(Vec::new).push(cost);
-          } else {
-            costs.components += cost;
-          };
+        let cost = component.cost(hull_socket_definition.size).unwrap_or(component.point_cost);
+        if let Some(compounding_cost) = component.compounding {
+          component_compounding_groups.entry(compounding_cost)
+            .or_insert_with(Vec::new).push(cost);
+        } else {
+          costs.components += cost;
         };
 
         let load = hull_socket.component_data.as_ref()
@@ -228,12 +227,14 @@ impl Ship {
         for &MagazineSaveData { ref munition_key, quantity, .. } in load {
           match munition_key {
             MunitionOrMissileKey::MunitionKey(munition_key) => {
-              costs.ammunition += munition_key.munition().point_cost * quantity;
+              // note to self: if you ever have to debug ammo costs, do not trust the cost breakdown in the
+              // hover list in-game. ammunition costs appear to use floor division not ceiling division.
+              // ammunition costs will be correct for multiples of the munition's point division, but will not otherwise.
+              let munition = munition_key.munition();
+              costs.ammunition += (munition.point_cost * quantity).div_ceil(munition.point_division);
             },
             MunitionOrMissileKey::MissileKey(missile_key) => {
-              if let Some(missile_template) = missile_templates.iter().find(|missile_template| {
-                missile_template.associated_template_name.as_deref() == Some(missile_key)
-              }) {
+              if let Some(missile_template) = find_missile_template(missile_templates, missile_key) {
                 costs.missiles += missile_template.calculate_cost() * quantity;
               };
             }
@@ -243,11 +244,14 @@ impl Ship {
     };
 
     for (compounding_cost_class, mut component_costs) in component_compounding_groups {
-      component_costs.sort();
+      // sorted from least to greatest
+      component_costs.sort_unstable();
 
       // first instance free appears to deduct the cost of the component with the most expensive base cost
       if compounding_cost_class.first_instance_free() {
-        component_costs.pop();
+        if let Some(cost) = component_costs.last_mut() {
+          *cost = 0;
+        };
       };
 
       let multiplier = compounding_cost_class.multiplier();
@@ -256,7 +260,7 @@ impl Ship {
       } else {
         // compounding appears to place more expensive components earlier
         // in the calculation, thus giving them lower compounding costs
-        for (cost, i) in component_costs.into_iter().rev().enumerate() {
+        for (i, cost) in component_costs.into_iter().rev().enumerate() {
           let modifier = if i == 0 { 1 } else { i * multiplier };
           costs.components += cost * modifier;
         };
@@ -838,6 +842,25 @@ impl SerializeElement for SecondaryStructureConfig {
   }
 }
 
+pub fn find_missile_template<'m>(missile_templates: &'m [MissileTemplate], missile_key: &str) -> Option<&'m MissileTemplate> {
+  missile_templates.iter().find(|missile_template| missile_template.matches_missile_key(missile_key))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DisplayMissileKey<'a> {
+  pub designation: &'a str,
+  pub nickname: &'a str
+}
+
+impl<'a> fmt::Display for DisplayMissileKey<'a> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str(self.designation)?;
+    f.write_str(" ")?;
+    f.write_str(self.nickname)?;
+    Ok(())
+  }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct MissileTemplate {
@@ -858,6 +881,19 @@ impl MissileTemplate {
   pub fn calculate_cost(&self) -> usize {
     // TODO: actually calculate the cost, perhaps we should not trust this number
     self.cost
+  }
+
+  pub fn matches_missile_key(&self, missile_key: &str) -> bool {
+    missile_key.strip_prefix(&self.designation)
+      .and_then(|s| s.strip_suffix(&self.nickname))
+      .is_some_and(|s| s == " ")
+  }
+
+  pub fn display_missile_key(&self) -> DisplayMissileKey<'_> {
+    DisplayMissileKey {
+      designation: &self.designation,
+      nickname: &self.nickname
+    }
   }
 
   pub fn get_summary(&self) -> crate::loadout::MissileTemplateSummary {

@@ -11,14 +11,15 @@ itertools = { version = "0.12.1" }
 nebulous-xml = { path = "../nebulous-xml", features = ["uuid"] }
 rand = { version = "0.8.5", default-features = false, features = ["std"], optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
+steamlocate = { version = "1.2.1", optional = true }
 thiserror = { version = "1.0" }
 uuid = { version = "1.7.0" }
 
 [dev-dependencies]
 base64 = { version = "0.22.1" }
-steamlocate = { version = "1.2.1" }
 walkdir = { version = "2.5.0" }
 
 [features]
 rand = ["dep:rand"]
 serde = ["dep:serde", "uuid/serde", "indexmap/serde"]
+steam-utils = ["dep:steamlocate"]

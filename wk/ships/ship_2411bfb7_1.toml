@@ -1,0 +1,21 @@
+name = "Static Noise"
+tags = []
+cost_budget_total = 410
+cost_budget_spare = 0
+missile_selections = []
+socket_data = "omlodWxsX3R5cGVxc3ByaW50ZXJfY29ydmV0dGVnc29ja2V0c4yhbWNvbXBvbmVudF9rZXl1cl9mMTAxX2J1bGxzZXllX3JhZGFyoW1jb21wb25lbnRfa2V5cWU3MV9oYW5ndXBfamFtbWVyoW1jb21wb25lbnRfa2V5cmU5MF9ibGFua2V0X2phbW1lcqFtY29tcG9uZW50X2tleXJlOTBfYmxhbmtldF9qYW1tZXKhbWNvbXBvbmVudF9rZXloYmVydGhpbmehbWNvbXBvbmVudF9rZXlwcmVpbmZvcmNlZF9jX2lfY6FtY29tcG9uZW50X2tleXBzbWFsbF9kX2NfbG9ja2VyoW1jb21wb25lbnRfa2V5dHBsYW50X2NvbnRyb2xfY2VudGVyoW1jb21wb25lbnRfa2V5dWZfcjMzMDBfbWljcm9fcmVhY3RvcqFtY29tcG9uZW50X2tleXVmX20yMzBfd2hpcGxhc2hfZHJpdmWhbWNvbXBvbmVudF9rZXl4GmFjdGl2ZWx5X2Nvb2xlZF9hbXBsaWZpZXJzoW1jb21wb25lbnRfa2V5eBphY3RpdmVseV9jb29sZWRfYW1wbGlmaWVycw=="
+
+[equipment_summary]
+has_intelligence = false
+has_illuminator = false
+has_deception_module = false
+has_missile_identification = false
+fire_control = []
+jamming = [
+    "comms",
+    "radar",
+]
+sensors = []
+weapons = []
+
+[equipment_summary.missile_cells]

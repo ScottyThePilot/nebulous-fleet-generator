@@ -372,8 +372,7 @@ impl<T: Parseable<Token> + 'static> Parseable<Token> for MultiPredicate<T> {
     choice((
       t.clone().then_ignore(symbol(Symbol::Ellipsis)).then(t.clone())
         .map(|(start, end)| Self::InRange(start, end)),
-      t.clone().separated_by(symbol(Symbol::Comma)).allow_trailing().at_least(1)
-        .delimited_by(symbol(Symbol::SquareBracketOpen), symbol(Symbol::SquareBracketClose))
+      crate::utils::delimited_square_bracket_list(t.clone(), 1)
         .map(|list| Self::AnyOf(list.into_boxed_slice())),
       t.clone()
         .map(Self::Only)
